@@ -1,0 +1,22 @@
+import Fastify from "fastify";
+import db from "./plugins/db.js";
+import oauthRoutes from "./routes/oauth.js";
+import scanRoutes from "./routes/scan.js";
+
+export default async function buildApp() {
+  const app = Fastify({ logger: true });
+
+  await app.register(db);
+  await app.register(oauthRoutes);
+  await app.register(scanRoutes);
+
+
+  app.get("/", async () => {
+    return {
+      status: "ok",
+      app: "Cost Waste Analyzer"
+    };
+  });
+
+  return app;
+}
