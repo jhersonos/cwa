@@ -286,6 +286,7 @@ async function analyzeCRMHygiene(token) {
       hasWorkflows,
       lifecycleMisalignment,
       leadsWithoutConversion: deals.length === 0 && leadsCount > 0,
+      leadsCount, // Expose for insights
       hygieneScore: score,
       limitedVisibility: hasWorkflows === null
     };
@@ -293,10 +294,12 @@ async function analyzeCRMHygiene(token) {
     return {
       hasWorkflows: null,
       lifecycleMisalignment: false,
+      leadsWithoutConversion: false,
+      leadsCount: 0,
       hygieneScore: 50,
       limitedVisibility: true
     };
-    }
+  }
 }
 
 /**
@@ -355,68 +358,268 @@ async function analyzeStructuralAlignment(token, usersData, contactsData) {
 }
 
 /**
- * Generate insights and recommendations
+ * Generate key metrics from analysis data
+ * Exposes raw metrics already calculated internally
+ */
+function generateKeyMetrics(usersData, contactsData, hygieneData, structureData) {
+  return {
+    inactiveUsers: usersData.inactiveUsers || 0,
+    staleContacts: contactsData.staleContacts || 0,
+    orphanContacts: contactsData.orphanContacts || 0,
+    contactsWithoutEmail: contactsData.contactsWithoutEmail || 0,
+    contactsPerUser: structureData.contactsPerUser || 0,
+    dealsToContactsRatio: structureData.dealsToContactsRatio || 0
+  };
+}
+
+/**
+ * Generate score explanations
+ * Explains WHY each area has its score in clear business language
+ */
+function generateScoreExplanation(usersData, contactsData, hygieneData, structureData) {
+  const explanations = [];
+
+  // Users Efficiency explanation
+  if (usersData.inactiveUsers > 0) {
+    explanations.push({
+      area: "Users Efficiency",
+      score: usersData.userEfficiencyScore,
+      reason: `${usersData.inactiveUsers} user${usersData.inactiveUsers > 1 ? "s are" : " is"} inactive or suspended, reducing operational efficiency`
+    });
+  } else if (usersData.totalUsers > 0) {
+    explanations.push({
+      area: "Users Efficiency",
+      score: usersData.userEfficiencyScore,
+      reason: "All users appear active and engaged"
+    });
+  }
+
+  // Contact Quality explanation
+  const contactIssues = [];
+  if (contactsData.staleContacts > 0) {
+    contactIssues.push(`${contactsData.staleContacts} contact${contactsData.staleContacts > 1 ? "s have" : " has"} not been updated in over 12 months`);
+  }
+  if (contactsData.orphanContacts > 0) {
+    contactIssues.push(`${contactsData.orphanContacts} contact${contactsData.orphanContacts > 1 ? "s are" : " is"} not associated with any lifecycle stage`);
+  }
+  if (contactsData.contactsWithoutEmail > 0) {
+    contactIssues.push(`${contactsData.contactsWithoutEmail} contact${contactsData.contactsWithoutEmail > 1 ? "s are" : " is"} missing email addresses`);
+  }
+
+  if (contactIssues.length > 0) {
+    explanations.push({
+      area: "Contact Quality",
+      score: contactsData.contactQualityScore,
+      reason: contactIssues.join("; ")
+    });
+  } else if (contactsData.totalContacts > 0) {
+    explanations.push({
+      area: "Contact Quality",
+      score: contactsData.contactQualityScore,
+      reason: "Contact data quality is good with minimal issues detected"
+    });
+  }
+
+  // CRM Hygiene explanation
+  const hygieneIssues = [];
+  if (hygieneData.hasWorkflows === false) {
+    hygieneIssues.push("No active workflows detected");
+  }
+  if (hygieneData.lifecycleMisalignment) {
+    hygieneIssues.push("Lifecycle stages are not aligned with deal volume");
+  }
+  if (hygieneData.leadsWithoutConversion) {
+    hygieneIssues.push("Leads are being created but not converting to deals");
+  }
+
+  if (hygieneIssues.length > 0) {
+    explanations.push({
+      area: "CRM Hygiene",
+      score: hygieneData.hygieneScore,
+      reason: hygieneIssues.join("; ")
+    });
+  } else {
+    explanations.push({
+      area: "CRM Hygiene",
+      score: hygieneData.hygieneScore,
+      reason: "CRM processes are well configured"
+    });
+  }
+
+  // Structural Alignment explanation
+  const structureIssues = [];
+  if (structureData.contactsPerUser > 5000) {
+    structureIssues.push(`Very high contact-to-user ratio (${structureData.contactsPerUser} contacts per user)`);
+  } else if (structureData.contactsPerUser > 0 && structureData.contactsPerUser < 100) {
+    structureIssues.push(`Low contact-to-user ratio (${structureData.contactsPerUser} contacts per user)`);
+  }
+  if (structureData.dealsToContactsRatio > 0 && structureData.dealsToContactsRatio < 0.01) {
+    structureIssues.push(`Low deal conversion rate (${(structureData.dealsToContactsRatio * 100).toFixed(1)}%)`);
+  } else if (structureData.dealsToContactsRatio === 0 && contactsData.totalContacts > 100) {
+    structureIssues.push("No deals found despite having contacts");
+  }
+
+  if (structureIssues.length > 0) {
+    explanations.push({
+      area: "Structural Alignment",
+      score: structureData.structureScore,
+      reason: structureIssues.join("; ")
+    });
+  } else {
+    explanations.push({
+      area: "Structural Alignment",
+      score: structureData.structureScore,
+      reason: "Account structure is well balanced"
+    });
+  }
+
+  return explanations;
+}
+
+/**
+ * Generate quantified insights
+ * Only includes insights with specific numbers
  */
 function generateInsights(usersData, contactsData, hygieneData, structureData) {
   const insights = [];
-  const recommendations = [];
 
-  // Users insights
+  // Users insights (quantified)
   if (usersData.inactiveUsers > 0) {
-    insights.push(`${usersData.inactiveUsers} inactive user${usersData.inactiveUsers > 1 ? "s" : ""} detected`);
-    recommendations.push("Remove inactive users to reduce license costs and improve security");
+    insights.push(`${usersData.inactiveUsers} user${usersData.inactiveUsers > 1 ? "s show" : " shows"} no recent activity`);
   }
 
-  // Contact quality insights
+  // Contact quality insights (quantified)
   if (contactsData.staleContacts > 0) {
-    insights.push(`${contactsData.staleContacts} stale contact${contactsData.staleContacts > 1 ? "s" : ""} (not updated in 12+ months)`);
-    recommendations.push("Archive or clean stale contacts to improve data quality");
+    insights.push(`${contactsData.staleContacts} contact${contactsData.staleContacts > 1 ? "s have" : " has"} not been updated in the last 12 months`);
   }
 
   if (contactsData.orphanContacts > 0) {
-    insights.push(`${contactsData.orphanContacts} contact${contactsData.orphanContacts > 1 ? "s" : ""} without lifecycle stage`);
-    recommendations.push("Assign lifecycle stages to contacts for better pipeline visibility");
+    insights.push(`${contactsData.orphanContacts} contact${contactsData.orphanContacts > 1 ? "s are" : " is"} not associated with any deal`);
   }
 
   if (contactsData.contactsWithoutEmail > 0) {
-    insights.push(`${contactsData.contactsWithoutEmail} contact${contactsData.contactsWithoutEmail > 1 ? "s" : ""} missing email addresses`);
-    recommendations.push("Enrich contacts with email addresses to enable email marketing");
+    insights.push(`${contactsData.contactsWithoutEmail} contact${contactsData.contactsWithoutEmail > 1 ? "s are" : " is"} missing email addresses`);
   }
 
-  // CRM Hygiene insights
+  // CRM Hygiene insights (quantified when possible)
   if (hygieneData.hasWorkflows === false) {
     insights.push("No workflows detected in account");
-    recommendations.push("Set up workflows to automate lead nurturing and follow-ups");
   }
 
   if (hygieneData.lifecycleMisalignment) {
     insights.push("Lifecycle stages not aligned with deal volume");
-    recommendations.push("Review and optimize lifecycle stage configuration");
   }
 
-  if (hygieneData.leadsWithoutConversion) {
-    insights.push("Leads created but no deals in pipeline");
-    recommendations.push("Implement lead qualification and conversion processes");
+  if (hygieneData.leadsWithoutConversion && hygieneData.leadsCount > 0) {
+    insights.push(`${hygieneData.leadsCount} lead${hygieneData.leadsCount > 1 ? "s created" : " created"} but no deals in pipeline`);
   }
 
-  // Structural insights
+  // Structural insights (quantified)
   if (structureData.contactsPerUser > 5000) {
-    insights.push("Very high contact-to-user ratio detected");
-    recommendations.push("Consider adding users or archiving inactive contacts");
+    insights.push(`Very high contact-to-user ratio detected (${structureData.contactsPerUser} contacts per user)`);
   }
 
   if (structureData.dealsToContactsRatio > 0 && structureData.dealsToContactsRatio < 0.01) {
-    insights.push("Low deal conversion rate from contacts");
-    recommendations.push("Improve lead qualification and sales process alignment");
+    const percentage = (structureData.dealsToContactsRatio * 100).toFixed(1);
+    insights.push(`Low deal conversion rate from contacts (${percentage}%)`);
+  } else if (structureData.dealsToContactsRatio === 0 && contactsData.totalContacts > 100) {
+    insights.push("No deals found despite having contacts");
   }
 
-  // Default if no issues
-  if (insights.length === 0) {
-    insights.push("No significant issues detected");
-    recommendations.push("Continue monitoring account health regularly");
+  // If score is low but no specific insights, use quantified metrics
+  const overallScore = calculateEfficiencyScoreV2(
+    usersData.userEfficiencyScore,
+    contactsData.contactQualityScore,
+    hygieneData.hygieneScore,
+    structureData.structureScore
+  );
+
+  if (insights.length === 0 && overallScore < 80) {
+    // Fallback: provide quantified insights based on available metrics
+    if (usersData.userEfficiencyScore < 70 && usersData.totalUsers > 0) {
+      const activeUsers = usersData.totalUsers - (usersData.inactiveUsers || 0);
+      insights.push(`${activeUsers} of ${usersData.totalUsers} users are active`);
+    }
+    if (contactsData.contactQualityScore < 70 && contactsData.totalContacts > 0) {
+      const qualityContacts = contactsData.totalContacts - 
+        (contactsData.staleContacts || 0) - 
+        (contactsData.orphanContacts || 0) - 
+        (contactsData.contactsWithoutEmail || 0);
+      insights.push(`${qualityContacts} of ${contactsData.totalContacts} contacts meet quality standards`);
+    }
+    if (hygieneData.hygieneScore < 70) {
+      insights.push("CRM automation and processes need improvement");
+    }
+    if (structureData.structureScore < 70 && structureData.contactsPerUser > 0) {
+      insights.push(`Current structure shows ${structureData.contactsPerUser} contacts per user`);
+    }
   }
 
-  return { insights, recommendations };
+  return insights;
+}
+
+/**
+ * Generate actionable recommendations
+ * References metrics and suggests concrete actions with business value
+ */
+function generateRecommendations(usersData, contactsData, hygieneData, structureData) {
+  const recommendations = [];
+
+  // Users recommendations
+  if (usersData.inactiveUsers > 0) {
+    recommendations.push(`Review and remove ${usersData.inactiveUsers} inactive user${usersData.inactiveUsers > 1 ? "s" : ""} to reduce license waste`);
+  }
+
+  // Contact quality recommendations
+  if (contactsData.staleContacts > 0) {
+    recommendations.push(`Archive ${contactsData.staleContacts} stale contact${contactsData.staleContacts > 1 ? "s" : ""} to improve reporting accuracy`);
+  }
+
+  if (contactsData.orphanContacts > 0) {
+    recommendations.push(`Assign lifecycle stages to ${contactsData.orphanContacts} contact${contactsData.orphanContacts > 1 ? "s" : ""} to improve pipeline visibility`);
+  }
+
+  if (contactsData.contactsWithoutEmail > 0) {
+    recommendations.push(`Enrich ${contactsData.contactsWithoutEmail} contact${contactsData.contactsWithoutEmail > 1 ? "s" : ""} with email addresses to enable email marketing`);
+  }
+
+  // CRM Hygiene recommendations
+  if (hygieneData.hasWorkflows === false) {
+    recommendations.push("Implement basic lifecycle workflows to align leads with deals");
+  }
+
+  if (hygieneData.lifecycleMisalignment) {
+    recommendations.push("Review and optimize lifecycle stage configuration to match sales process");
+  }
+
+  if (hygieneData.leadsWithoutConversion) {
+    recommendations.push("Implement lead qualification and conversion processes to move leads to deals");
+  }
+
+  // Structural recommendations
+  if (structureData.contactsPerUser > 5000) {
+    recommendations.push("Consider adding users or archiving inactive contacts to balance workload");
+  }
+
+  if (structureData.dealsToContactsRatio > 0 && structureData.dealsToContactsRatio < 0.01) {
+    recommendations.push("Improve lead qualification and sales process alignment to increase conversion");
+  } else if (structureData.dealsToContactsRatio === 0 && contactsData.totalContacts > 100) {
+    recommendations.push("Create deals from qualified contacts to track sales pipeline");
+  }
+
+  // If no specific recommendations but score is low
+  const overallScore = calculateEfficiencyScoreV2(
+    usersData.userEfficiencyScore,
+    contactsData.contactQualityScore,
+    hygieneData.hygieneScore,
+    structureData.structureScore
+  );
+
+  if (recommendations.length === 0 && overallScore < 80) {
+    recommendations.push("Review account configuration and data quality to improve overall efficiency");
+  }
+
+  return recommendations;
 }
 
 /**
@@ -500,15 +703,38 @@ export default async function scanV2Routes(fastify) {
         structureData.structureScore
       );
 
-      // Generate insights and recommendations
-      const { insights, recommendations } = generateInsights(
+      // Generate enhanced insights and recommendations (V2.1)
+      const insights = generateInsights(
         usersData,
         contactsData,
         hygieneData,
         structureData
       );
 
-      // Build response
+      const recommendations = generateRecommendations(
+        usersData,
+        contactsData,
+        hygieneData,
+        structureData
+      );
+
+      // Generate key metrics (V2.1)
+      const keyMetrics = generateKeyMetrics(
+        usersData,
+        contactsData,
+        hygieneData,
+        structureData
+      );
+
+      // Generate score explanations (V2.1)
+      const scoreExplanation = generateScoreExplanation(
+        usersData,
+        contactsData,
+        hygieneData,
+        structureData
+      );
+
+      // Build response (V2.1 format)
       const result = {
         portalId: String(portalId),
         efficiencyScoreV2,
@@ -519,8 +745,10 @@ export default async function scanV2Routes(fastify) {
           hygiene: hygieneData.hygieneScore,
           structure: structureData.structureScore
         },
-        insights,
-        recommendations,
+        scoreExplanation, // NEW: Explains why each area has its score
+        keyMetrics, // NEW: Exposes raw metrics
+        insights, // Enhanced: Quantified insights only
+        recommendations, // Enhanced: Actionable with metrics
         limitedVisibility:
           usersData.limitedVisibility ||
           contactsData.limitedVisibility ||
