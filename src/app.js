@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import db from "./plugins/db.js";
 import oauthRoutes from "./routes/oauth.js";
 import scanRoutes from "./routes/scan.js";
+import scanV2Routes from "./routes/scanV2.js";
 
 export default async function buildApp() {
   const app = Fastify({ logger: true });
@@ -9,6 +10,7 @@ export default async function buildApp() {
   await app.register(db);
   await app.register(oauthRoutes);
   await app.register(scanRoutes);
+  await app.register(scanV2Routes);
 
 
   app.get("/", async () => {
