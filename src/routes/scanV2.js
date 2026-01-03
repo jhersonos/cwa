@@ -1,4 +1,6 @@
 import { hubspotRequest } from "../services/hubspot.js";
+import { getValidAccessToken } from "../services/hubspotOAuth.js";
+
 
 const scanV2Cache = new Map();
 
@@ -43,16 +45,24 @@ function buildContactDisplay(props, id) {
 /**
  * Fetch all contacts with pagination
  */
-async function getAllContactsDetailed(token) {
+async function getAllContactsDetailed(fastify, portalId, token) {
   try {
     let after;
     const contacts = [];
 
     do {
       const res = await hubspotRequest(
+        fastify,
+        portalId,
         token,
-        `/crm/v3/objects/contacts?limit=100&properties=email,lifecyclestage,hs_lastmodifieddate,hs_createdate${after ? `&after=${after}` : ""}`
+        `/crm/v3/objects/contacts?limit=100&properties=email,lifecyclestage,hs_lastmodifieddate${after ? `&after=${after}` : ""}`
       );
+
+      console.log("CONTACTS PAGE:", {
+        hasResults: Array.isArray(res?.results),
+        resultsLength: res?.results?.length || 0,
+        paging: res?.paging
+      });
 
       if (res?.results) {
         contacts.push(...res.results);
@@ -61,21 +71,31 @@ async function getAllContactsDetailed(token) {
       after = res?.paging?.next?.after;
     } while (after);
 
+    console.log("TOTAL CONTACTS FETCHED:", contacts.length);
+
     return contacts;
   } catch (err) {
-    return []; // 🔥 SIEMPRE array, nunca null
+    console.error(
+      "CONTACT FETCH ERROR:",
+      err?.response?.data || err.message
+    );
+    return [];
   }
 }
+
+
 
 /**
  * Fetch all deals with pagination
  */
-async function getAllDeals(token) {
+async function getAllDeals(fastify, portalId, token) {
   let after;
   const deals = [];
 
   do {
     const res = await hubspotRequest(
+      fastify,
+      portalId,
       token,
       `/crm/v3/objects/deals?limit=100${after ? `&after=${after}` : ""}`
     );
@@ -102,9 +122,12 @@ async function getContactDealAssociations(token, contactIds) {
 /**
  * Check if workflows are enabled (best effort)
  */
-async function checkWorkflowsEnabled(token) {
+async function checkWorkflowsEnabled(fastify, portalId, token) {
   try {
-    const res = await hubspotRequest(token, "/automation/v3/workflows");
+    const res = await hubspotRequest(
+      fastify,
+      portalId,
+      token, "/automation/v3/workflows");
     return res.results && res.results.length > 0;
   } catch {
     return null; // Unknown
@@ -114,9 +137,12 @@ async function checkWorkflowsEnabled(token) {
 /**
  * Get lifecycle stages configuration
  */
-async function getLifecycleStages(token) {
+async function getLifecycleStages(fastify, portalId, token) {
   try {
-    const res = await hubspotRequest(token, "/crm/v3/pipelines/contacts");
+    const res = await hubspotRequest(
+      fastify,
+      portalId,
+      token, "/crm/v3/pipelines/contacts");
     if (res.results && res.results.length > 0) {
       return res.results[0].stages || [];
     }
@@ -133,9 +159,12 @@ async function getLifecycleStages(token) {
 /**
  * 1. USERS EFFICIENCY (30% weight)
  */
-async function analyzeUsersEfficiency(token) {
+async function analyzeUsersEfficiency(fastify, portalId, token) {
   try {
-    const usersRes = await hubspotRequest(token, "/settings/v3/users");
+    const usersRes = await hubspotRequest(
+      fastify,
+      portalId,
+      token, "/settings/v3/users");
     const users = usersRes?.results || [];
 
     if (users.length === 0) {
@@ -187,23 +216,28 @@ async function analyzeUsersEfficiency(token) {
   }
 }
 
+
 /**
  * 2. CONTACT QUALITY (30% weight)
  */
-async function analyzeContactQuality(token) {
+async function analyzeContactQuality(fastify, portalId, token) {
   try {
-    const contacts = await getAllContactsDetailed(token);
+    const contacts = await getAllContactsDetailed(fastify, portalId, token);
 
+    // ❌ Error real: no se pudo leer contactos
     if (!Array.isArray(contacts)) {
       return {
-        totalContacts: 0,
-        staleContacts: 0,
-        orphanContacts: 0,
+        totalContacts: null,
+        staleContacts: null,
+        orphanContacts: null,
+        contactsWithoutEmail: null,
+        contactsWithoutLifecycle: null,
         contactQualityScore: 50,
         limitedVisibility: true
       };
     }
-    
+
+    // ✅ Cuenta válida pero sin contactos
     if (contacts.length === 0) {
       return {
         totalContacts: 0,
@@ -215,8 +249,6 @@ async function analyzeContactQuality(token) {
         limitedVisibility: false
       };
     }
-    
-    
 
     const now = Date.now();
     const twelveMonthsAgo = now - 365 * 24 * 60 * 60 * 1000;
@@ -229,17 +261,14 @@ async function analyzeContactQuality(token) {
     for (const contact of contacts) {
       const properties = contact.properties || {};
 
-      // Check for email
       if (!properties.email) {
         contactsWithoutEmail++;
       }
 
-      // Check for lifecycle stage
       if (!properties.lifecyclestage) {
         contactsWithoutLifecycle++;
       }
 
-      // Check if stale (not updated in 12 months)
       const lastModified = properties.hs_lastmodifieddate
         ? new Date(properties.hs_lastmodifieddate).getTime()
         : null;
@@ -249,14 +278,11 @@ async function analyzeContactQuality(token) {
       }
     }
 
-    // Get deals to find orphan contacts
-    // Orphan contacts = contacts without lifecycle stage (not in pipeline)
-    // This is a conservative, sellable insight
     const orphanContacts = contactsWithoutLifecycle;
 
-    // Calculate quality score
     let score = 100;
-    const totalIssues = staleContacts + contactsWithoutEmail + contactsWithoutLifecycle;
+    const totalIssues =
+      staleContacts + contactsWithoutEmail + contactsWithoutLifecycle;
     const issueRatio = totalIssues / contacts.length;
 
     if (issueRatio > 0.5) score -= 40;
@@ -273,13 +299,16 @@ async function analyzeContactQuality(token) {
       contactsWithoutEmail,
       contactsWithoutLifecycle,
       contactQualityScore: score,
-      limitedVisibility: false
+      limitedVisibility: false // ✅ CLAVE
     };
   } catch (err) {
+    // ❌ Error inesperado (token, scope, rate limit, etc.)
     return {
-      totalContacts: 0,
-      staleContacts: 0,
-      orphanContacts: 0,
+      totalContacts: null,
+      staleContacts: null,
+      orphanContacts: null,
+      contactsWithoutEmail: null,
+      contactsWithoutLifecycle: null,
       contactQualityScore: 50,
       limitedVisibility: true
     };
@@ -289,11 +318,11 @@ async function analyzeContactQuality(token) {
 /**
  * 3. CRM HYGIENE (20% weight)
  */
-async function analyzeCRMHygiene(token) {
+async function analyzeCRMHygiene(fastify, portalId, token) {
   try {
-    const hasWorkflows = await checkWorkflowsEnabled(token);
-    const lifecycleStages = await getLifecycleStages(token);
-    const deals = await getAllDeals(token);
+    const hasWorkflows = await checkWorkflowsEnabled(fastify, portalId, token);
+    const lifecycleStages = await getLifecycleStages(fastify, portalId, token);
+    const deals = await getAllDeals(fastify, portalId, token);
 
     let score = 100;
     let lifecycleMisalignment = false;
@@ -321,7 +350,7 @@ async function analyzeCRMHygiene(token) {
 
     // Check for leads without conversion
     // This is simplified - in production you'd check associations properly
-    const contacts = await getAllContactsDetailed(token);
+    const contacts = await getAllContactsDetailed(fastify, portalId, token);
 
 if (!Array.isArray(contacts) || contacts.length === 0) {
   return {
@@ -371,11 +400,11 @@ if (!Array.isArray(contacts) || contacts.length === 0) {
 /**
  * 4. STRUCTURAL ALIGNMENT (20% weight)
  */
-async function analyzeStructuralAlignment(token, usersData, contactsData) {
+async function analyzeStructuralAlignment(fastify, portalId, token, usersData, contactsData) {
   try {
     const totalUsers = usersData.totalUsers || 1;
     const totalContacts = contactsData.totalContacts || 0;
-    const deals = await getAllDeals(token);
+    const deals = await getAllDeals(fastify, portalId, token);
 
     let score = 100;
 
@@ -671,7 +700,7 @@ function hasCriticalDataGaps(usersData, contactsData) {
  * Get affected objects (limited to 5 per type for preview)
  * Returns objects with full client-meaningful context
  */
-async function getAffectedObjects(token, portalId) {
+async function getAffectedObjects(fastify, portalId, token) {
   const result = {
     contactsWithoutEmail: [],
     staleContacts: [],
@@ -689,6 +718,8 @@ async function getAffectedObjects(token, portalId) {
     
     do {
       const res = await hubspotRequest(
+        fastify,
+        portalId,
         token,
         `/crm/v3/objects/contacts?limit=100&properties=firstname,lastname,email,phone,lifecyclestage,hs_lastmodifieddate,company${after ? `&after=${after}` : ""}`
       );
@@ -756,6 +787,8 @@ async function getAffectedObjects(token, portalId) {
     -------------------------------- */
 
     const dealsRes = await hubspotRequest(
+      fastify,
+      portalId,
       token,
       "/crm/v3/objects/deals?limit=100&properties=dealname,dealstage,amount"
     );
@@ -947,7 +980,7 @@ export default async function scanV2Routes(fastify) {
       });
     }
 
-    const token = rows[0].access_token;
+    const token = await getValidAccessToken(fastify, portalId);
 
     fastify.log.info(
       {
@@ -959,8 +992,18 @@ export default async function scanV2Routes(fastify) {
 
     try {
       // Run all analyses
-      const usersData = await analyzeUsersEfficiency(token);
-      const contactsData = await analyzeContactQuality(token);
+      const usersData = await analyzeUsersEfficiency(
+        fastify,
+        portalId,
+        token
+      );
+      
+      const contactsData = await analyzeContactQuality(
+        fastify,
+        portalId,
+        token
+      );
+      
       fastify.log.info(
         {
           totalContacts: contactsData.totalContacts,
@@ -968,13 +1011,21 @@ export default async function scanV2Routes(fastify) {
         },
         "CONTACT QUALITY RESULT"
       );
-      const hygieneData = await analyzeCRMHygiene(token);
+      
+      const hygieneData = await analyzeCRMHygiene(
+        fastify,
+        portalId,
+        token
+      );
+      
       const structureData = await analyzeStructuralAlignment(
+        fastify,
+        portalId,
         token,
         usersData,
         contactsData
       );
-
+      
       // Calculate overall score
       const efficiencyScoreV2 = calculateEfficiencyScoreV2(
         usersData.userEfficiencyScore,
@@ -988,7 +1039,11 @@ export default async function scanV2Routes(fastify) {
       // Metrics come from analyzeContactQuality() and analyzeUsersEfficiency()
       let affectedObjects = {};
       try {
-        affectedObjects = await getAffectedObjects(token, portalId);
+        affectedObjects = await getAffectedObjects(
+          fastify,
+          portalId,
+          token
+        );
       } catch (err) {
         fastify.log.error(`Failed to get affected objects: ${err.message}`);
         // Continue with empty affectedObjects - metrics are already calculated
