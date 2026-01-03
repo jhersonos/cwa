@@ -559,6 +559,19 @@ function generateInsights(usersData, contactsData, hygieneData, structureData) {
 }
 
 /**
+ * Calculate contact growth risk level
+ * Reused from V1 for account overview
+ */
+function calculateContactRiskLevel(totalContacts, totalUsers) {
+  if (totalUsers === 0) return "Medium";
+
+  const ratio = totalContacts / totalUsers;
+  if (ratio > 5000) return "High";
+  if (ratio > 3000) return "Medium";
+  return "Low";
+}
+
+/**
  * Determine if there are critical data gaps
  * Only true if we cannot read essential data (users, contacts)
  * NOT based on HubSpot plan or missing workflows
@@ -579,9 +592,9 @@ function hasCriticalDataGaps(usersData, contactsData) {
 
 /**
  * Get affected objects (limited to 5 per type for preview)
- * Returns objects that are mentioned in insights
+ * Returns objects with full client-meaningful context
  */
-async function getAffectedObjects(token, usersData, contactsData) {
+async function getAffectedObjects(token, portalId, usersData, contactsData) {
   const affectedObjects = {
     contactsWithoutEmail: [],
     staleContacts: [],
@@ -597,10 +610,16 @@ async function getAffectedObjects(token, usersData, contactsData) {
         const inactiveUsers = (usersRes?.results || [])
           .filter((u) => u.isSuspended === true || !u.email)
           .slice(0, 5)
-          .map((u) => ({
-            id: String(u.id || ""),
-            email: u.email || "No email"
-          }));
+          .map((u) => {
+            const displayName = u.email || `User ${u.id}`;
+            return {
+              id: String(u.id || ""),
+              objectType: "user",
+              displayName,
+              secondaryLabel: u.email ? null : "No email address",
+              reason: u.isSuspended ? "User account is suspended" : "User account has no email address"
+            };
+          });
         
         if (inactiveUsers.length > 0) {
           affectedObjects.inactiveUsers = inactiveUsers;
@@ -622,12 +641,21 @@ async function getAffectedObjects(token, usersData, contactsData) {
           const withoutEmail = contacts
             .filter((c) => !c.properties?.email)
             .slice(0, 5)
-            .map((c) => ({
-              id: c.id,
-              name: c.properties?.firstname && c.properties?.lastname
-                ? `${c.properties.firstname} ${c.properties.lastname}`.trim()
-                : c.properties?.email || c.properties?.company || "Unnamed contact"
-            }));
+            .map((c) => {
+              const props = c.properties || {};
+              const displayName = props.firstname && props.lastname
+                ? `${props.firstname} ${props.lastname}`.trim()
+                : props.company || `Contact ${c.id}`;
+              const secondaryLabel = props.company || null;
+              
+              return {
+                id: c.id,
+                objectType: "contact",
+                displayName,
+                secondaryLabel,
+                reason: "Missing email address"
+              };
+            });
           
           if (withoutEmail.length > 0) {
             affectedObjects.contactsWithoutEmail = withoutEmail;
@@ -644,12 +672,21 @@ async function getAffectedObjects(token, usersData, contactsData) {
               return lastModified && lastModified < twelveMonthsAgo;
             })
             .slice(0, 5)
-            .map((c) => ({
-              id: c.id,
-              name: c.properties?.firstname && c.properties?.lastname
-                ? `${c.properties.firstname} ${c.properties.lastname}`.trim()
-                : c.properties?.email || c.properties?.company || "Unnamed contact"
-            }));
+            .map((c) => {
+              const props = c.properties || {};
+              const displayName = props.firstname && props.lastname
+                ? `${props.firstname} ${props.lastname}`.trim()
+                : props.email || props.company || `Contact ${c.id}`;
+              const secondaryLabel = props.email || props.company || null;
+              
+              return {
+                id: c.id,
+                objectType: "contact",
+                displayName,
+                secondaryLabel,
+                reason: "Not updated in over 12 months"
+              };
+            });
           
           if (stale.length > 0) {
             affectedObjects.staleContacts = stale;
@@ -661,12 +698,21 @@ async function getAffectedObjects(token, usersData, contactsData) {
           const orphan = contacts
             .filter((c) => !c.properties?.lifecyclestage)
             .slice(0, 5)
-            .map((c) => ({
-              id: c.id,
-              name: c.properties?.firstname && c.properties?.lastname
-                ? `${c.properties.firstname} ${c.properties.lastname}`.trim()
-                : c.properties?.email || c.properties?.company || "Unnamed contact"
-            }));
+            .map((c) => {
+              const props = c.properties || {};
+              const displayName = props.firstname && props.lastname
+                ? `${props.firstname} ${props.lastname}`.trim()
+                : props.email || props.company || `Contact ${c.id}`;
+              const secondaryLabel = props.email || props.company || null;
+              
+              return {
+                id: c.id,
+                objectType: "contact",
+                displayName,
+                secondaryLabel,
+                reason: "Not associated with any lifecycle stage"
+              };
+            });
           
           if (orphan.length > 0) {
             affectedObjects.orphanContacts = orphan;
@@ -871,18 +917,30 @@ export default async function scanV2Routes(fastify) {
       const hasCriticalGaps = hasCriticalDataGaps(usersData, contactsData);
       const conservativeEstimates = efficiencyScoreV2 < 90 && hasCriticalGaps;
 
-      // Get affected objects (V2.1 new feature)
+      // Get affected objects (V2.1 new feature with full context)
       const affectedObjects = await getAffectedObjects(
         token,
+        portalId,
         usersData,
         contactsData
       );
 
-      // Build response (V2.1 format)
+      // Calculate contact growth risk (reuse existing logic)
+      const contactGrowthRisk = calculateContactRiskLevel(
+        contactsData.totalContacts,
+        usersData.totalUsers
+      );
+
+      // Build response (V2.1 format with account overview)
       const result = {
         portalId: String(portalId),
         efficiencyScoreV2,
         summary: generateSummary(efficiencyScoreV2),
+        accountOverview: {
+          totalContacts: contactsData.totalContacts || 0,
+          totalUsers: usersData.totalUsers || 0,
+          contactGrowthRisk
+        },
         scoreBreakdown: {
           users: usersData.userEfficiencyScore,
           contacts: contactsData.contactQualityScore,
@@ -893,8 +951,8 @@ export default async function scanV2Routes(fastify) {
         keyMetrics, // Exposes raw metrics
         insights, // Quantified insights only
         recommendations, // Actionable with metrics
-        conservativeEstimates, // NEW: Only true if critical data gaps AND score < 90
-        affectedObjects: Object.keys(affectedObjects).length > 0 ? affectedObjects : undefined // NEW: Preview of affected objects
+        conservativeEstimates, // Only true if critical data gaps AND score < 90
+        affectedObjects: Object.keys(affectedObjects).length > 0 ? affectedObjects : undefined // Preview of affected objects with full context
       };
 
       // Save to database
