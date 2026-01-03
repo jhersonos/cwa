@@ -16,31 +16,29 @@ function buildDealDisplay(props, id) {
 }
 
 function buildContactDisplay(props, id) {
+  // Build display name
+  let displayName = "";
   if (props.firstname || props.lastname) {
-    return {
-      displayName: `${props.firstname || ""} ${props.lastname || ""}`.trim(),
-      secondaryLabel: props.email || props.company || null
-    };
+    displayName = `${props.firstname || ""} ${props.lastname || ""}`.trim();
+  } else if (props.email) {
+    displayName = props.email;
+  } else if (props.company) {
+    displayName = props.company;
+  } else {
+    displayName = `Contact ${id}`;
   }
 
+  // Build secondary label (email, phone, or company)
+  let secondaryLabel = null;
   if (props.email) {
-    return {
-      displayName: props.email,
-      secondaryLabel: props.company || null
-    };
+    secondaryLabel = props.email;
+  } else if (props.phone) {
+    secondaryLabel = `Phone: ${props.phone}`;
+  } else if (props.company && displayName !== props.company) {
+    secondaryLabel = props.company;
   }
 
-  if (props.company) {
-    return {
-      displayName: props.company,
-      secondaryLabel: null
-    };
-  }
-
-  return {
-    displayName: `Contact ${id}`,
-    secondaryLabel: null
-  };
+  return { displayName, secondaryLabel };
 }
 /**
  * Fetch all contacts with pagination
@@ -686,7 +684,7 @@ async function getAffectedObjects(token, portalId) {
 
     const contactsRes = await hubspotRequest(
       token,
-      "/crm/v3/objects/contacts?limit=100&properties=firstname,lastname,email,lifecyclestage,hs_lastmodifieddate,company"
+      "/crm/v3/objects/contacts?limit=100&properties=firstname,lastname,email,phone,lifecyclestage,hs_lastmodifieddate,company"
     );
 
     const contacts = contactsRes.results || [];
