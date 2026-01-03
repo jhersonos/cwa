@@ -37,7 +37,20 @@ export async function runScanV3(req, reply) {
   /* ------------------------
      FASE 8 — WORKFLOWS
   ------------------------ */
-  const workflows = await analyzeWorkflows(req.server, portalId, token);
+  let workflows = {
+    total: 0,
+    inactive: 0,
+    highComplexity: 0,
+    legacy: 0,
+    limitedVisibility: true
+  };
+  
+  try {
+    workflows = await analyzeWorkflows(req.server, portalId, token);
+  } catch (err) {
+    // 🔒 NO HACER NADA
+    // workflows queda como limitedVisibility: true
+  }
 
   /* ------------------------
      FASE 5 — EFFICIENCY SCORE
