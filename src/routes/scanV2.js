@@ -5,7 +5,43 @@ const scanV2Cache = new Map();
 /* -------------------------
    HELPER FUNCTIONS
 ------------------------- */
+function buildDealDisplay(props, id) {
+  const displayName = props.dealname || `Deal ${id}`;
+  const secondaryLabel = [
+    props.dealstage ? `Stage: ${props.dealstage}` : null,
+    props.amount ? `Amount: ${props.amount}` : null
+  ].filter(Boolean).join(" · ") || null;
 
+  return { displayName, secondaryLabel };
+}
+
+function buildContactDisplay(props, id) {
+  if (props.firstname || props.lastname) {
+    return {
+      displayName: `${props.firstname || ""} ${props.lastname || ""}`.trim(),
+      secondaryLabel: props.email || props.company || null
+    };
+  }
+
+  if (props.email) {
+    return {
+      displayName: props.email,
+      secondaryLabel: props.company || null
+    };
+  }
+
+  if (props.company) {
+    return {
+      displayName: props.company,
+      secondaryLabel: null
+    };
+  }
+
+  return {
+    displayName: `Contact ${id}`,
+    secondaryLabel: null
+  };
+}
 /**
  * Fetch all contacts with pagination
  */
@@ -480,83 +516,78 @@ function generateScoreExplanation(usersData, contactsData, hygieneData, structur
  * Generate quantified insights
  * Only includes insights with specific numbers
  */
-function generateInsights(usersData, contactsData, hygieneData, structureData) {
+function generateInsights({
+  contactsData,
+  usersData,
+  hygieneData,
+  structureData,
+  affectedObjects
+}) {
   const insights = [];
 
-  // Users insights (quantified)
+  /* -------------------------
+     CONTACT QUALITY
+  ------------------------- */
+
+  if (affectedObjects.contactsWithoutEmail?.length > 0) {
+    insights.push(
+      `${contactsData.contactsWithoutEmail} contact(s) are missing an email address`
+    );
+  }
+
+  if (affectedObjects.staleContacts?.length > 0) {
+    insights.push(
+      `${contactsData.staleContacts} contact(s) have not been updated in over 12 months`
+    );
+  }
+
+  if (affectedObjects.orphanContacts?.length > 0) {
+    insights.push(
+      `${contactsData.orphanContacts} contact(s) are not assigned to any lifecycle stage`
+    );
+  }
+
+  /* -------------------------
+     USERS
+  ------------------------- */
+
   if (usersData.inactiveUsers > 0) {
-    insights.push(`${usersData.inactiveUsers} user${usersData.inactiveUsers > 1 ? "s show" : " shows"} no recent activity`);
+    insights.push(
+      `${usersData.inactiveUsers} user(s) appear inactive or suspended`
+    );
   }
 
-  // Contact quality insights (quantified)
-  if (contactsData.staleContacts > 0) {
-    insights.push(`${contactsData.staleContacts} contact${contactsData.staleContacts > 1 ? "s have" : " has"} not been updated in the last 12 months`);
+  /* -------------------------
+     DEAL STRUCTURE
+  ------------------------- */
+
+  if (affectedObjects.dealsWithoutStage?.length > 0) {
+    insights.push(
+      `${affectedObjects.dealsWithoutStage.length} deal(s) have no pipeline stage assigned`
+    );
   }
 
-  if (contactsData.orphanContacts > 0) {
-    insights.push(`${contactsData.orphanContacts} contact${contactsData.orphanContacts > 1 ? "s are" : " is"} not associated with any deal`);
+  if (
+    structureData.dealsToContactsRatio !== null &&
+    structureData.dealsToContactsRatio < 0.01 &&
+    contactsData.totalContacts > 50
+  ) {
+    insights.push(
+      "Low deal creation rate compared to total contacts"
+    );
   }
 
-  if (contactsData.contactsWithoutEmail > 0) {
-    insights.push(`${contactsData.contactsWithoutEmail} contact${contactsData.contactsWithoutEmail > 1 ? "s are" : " is"} missing email addresses`);
-  }
+  /* -------------------------
+     FALLBACK
+  ------------------------- */
 
-  // CRM Hygiene insights (quantified when possible)
-  if (hygieneData.hasWorkflows === false) {
-    insights.push("No workflows detected in account");
-  }
-
-  if (hygieneData.lifecycleMisalignment) {
-    insights.push("Lifecycle stages not aligned with deal volume");
-  }
-
-  if (hygieneData.leadsWithoutConversion && hygieneData.leadsCount > 0) {
-    insights.push(`${hygieneData.leadsCount} lead${hygieneData.leadsCount > 1 ? "s created" : " created"} but no deals in pipeline`);
-  }
-
-  // Structural insights (quantified)
-  if (structureData.contactsPerUser > 5000) {
-    insights.push(`Very high contact-to-user ratio detected (${structureData.contactsPerUser} contacts per user)`);
-  }
-
-  if (structureData.dealsToContactsRatio > 0 && structureData.dealsToContactsRatio < 0.01) {
-    const percentage = (structureData.dealsToContactsRatio * 100).toFixed(1);
-    insights.push(`Low deal conversion rate from contacts (${percentage}%)`);
-  } else if (structureData.dealsToContactsRatio === 0 && contactsData.totalContacts > 100) {
-    insights.push("No deals found despite having contacts");
-  }
-
-  // If score is low but no specific insights, use quantified metrics
-  const overallScore = calculateEfficiencyScoreV2(
-    usersData.userEfficiencyScore,
-    contactsData.contactQualityScore,
-    hygieneData.hygieneScore,
-    structureData.structureScore
-  );
-
-  if (insights.length === 0 && overallScore < 80) {
-    // Fallback: provide quantified insights based on available metrics
-    if (usersData.userEfficiencyScore < 70 && usersData.totalUsers > 0) {
-      const activeUsers = usersData.totalUsers - (usersData.inactiveUsers || 0);
-      insights.push(`${activeUsers} of ${usersData.totalUsers} users are active`);
-    }
-    if (contactsData.contactQualityScore < 70 && contactsData.totalContacts > 0) {
-      const qualityContacts = contactsData.totalContacts - 
-        (contactsData.staleContacts || 0) - 
-        (contactsData.orphanContacts || 0) - 
-        (contactsData.contactsWithoutEmail || 0);
-      insights.push(`${qualityContacts} of ${contactsData.totalContacts} contacts meet quality standards`);
-    }
-    if (hygieneData.hygieneScore < 70) {
-      insights.push("CRM automation and processes need improvement");
-    }
-    if (structureData.structureScore < 70 && structureData.contactsPerUser > 0) {
-      insights.push(`Current structure shows ${structureData.contactsPerUser} contacts per user`);
-    }
+  if (insights.length === 0) {
+    insights.push("No significant issues detected");
   }
 
   return insights;
 }
+
 
 /**
  * Calculate contact growth risk level
@@ -594,141 +625,112 @@ function hasCriticalDataGaps(usersData, contactsData) {
  * Get affected objects (limited to 5 per type for preview)
  * Returns objects with full client-meaningful context
  */
-async function getAffectedObjects(token, portalId, usersData, contactsData) {
-  const affectedObjects = {
+async function getAffectedObjects(token, portalId) {
+  const result = {
     contactsWithoutEmail: [],
     staleContacts: [],
     orphanContacts: [],
-    inactiveUsers: []
+    dealsWithoutStage: []
   };
 
   try {
-    // Get inactive users (max 5)
-    if (usersData.inactiveUsers > 0) {
-      try {
-        const usersRes = await hubspotRequest(token, "/settings/v3/users");
-        const inactiveUsers = (usersRes?.results || [])
-          .filter((u) => u.isSuspended === true || !u.email)
-          .slice(0, 5)
-          .map((u) => {
-            const displayName = u.email || `User ${u.id}`;
-            return {
-              id: String(u.id || ""),
-              objectType: "user",
-              displayName,
-              secondaryLabel: u.email ? null : "No email address",
-              reason: u.isSuspended ? "User account is suspended" : "User account has no email address"
-            };
-          });
-        
-        if (inactiveUsers.length > 0) {
-          affectedObjects.inactiveUsers = inactiveUsers;
-        }
-      } catch {
-        // Skip if cannot fetch
-      }
-    }
+    /* --------------------------------
+       CONTACTS
+    -------------------------------- */
 
-    // Get contacts with issues (max 5 per type)
-    if (contactsData.totalContacts > 0) {
-      try {
-        const contacts = await getAllContactsDetailed(token);
-        const now = Date.now();
-        const twelveMonthsAgo = now - 365 * 24 * 60 * 60 * 1000;
+    const contactsRes = await hubspotRequest(
+      token,
+      "/crm/v3/objects/contacts?limit=100&properties=firstname,lastname,email,lifecyclestage,hs_lastmodifieddate,company"
+    );
 
-        // Contacts without email
-        if (contactsData.contactsWithoutEmail > 0) {
-          const withoutEmail = contacts
-            .filter((c) => !c.properties?.email)
-            .slice(0, 5)
-            .map((c) => {
-              const props = c.properties || {};
-              const displayName = props.firstname && props.lastname
-                ? `${props.firstname} ${props.lastname}`.trim()
-                : props.company || `Contact ${c.id}`;
-              const secondaryLabel = props.company || null;
-              
-              return {
-                id: c.id,
-                objectType: "contact",
-                displayName,
-                secondaryLabel,
-                reason: "Missing email address"
-              };
-            });
-          
-          if (withoutEmail.length > 0) {
-            affectedObjects.contactsWithoutEmail = withoutEmail;
-          }
-        }
+    const contacts = contactsRes.results || [];
+    const now = Date.now();
+    const twelveMonthsAgo = now - 365 * 24 * 60 * 60 * 1000;
 
-        // Stale contacts
-        if (contactsData.staleContacts > 0) {
-          const stale = contacts
-            .filter((c) => {
-              const lastModified = c.properties?.hs_lastmodifieddate
-                ? new Date(c.properties.hs_lastmodifieddate).getTime()
-                : null;
-              return lastModified && lastModified < twelveMonthsAgo;
-            })
-            .slice(0, 5)
-            .map((c) => {
-              const props = c.properties || {};
-              const displayName = props.firstname && props.lastname
-                ? `${props.firstname} ${props.lastname}`.trim()
-                : props.email || props.company || `Contact ${c.id}`;
-              const secondaryLabel = props.email || props.company || null;
-              
-              return {
-                id: c.id,
-                objectType: "contact",
-                displayName,
-                secondaryLabel,
-                reason: "Not updated in over 12 months"
-              };
-            });
-          
-          if (stale.length > 0) {
-            affectedObjects.staleContacts = stale;
-          }
-        }
+    // Contacts without email
+    result.contactsWithoutEmail = contacts
+      .filter((c) => !c.properties?.email)
+      .slice(0, 5)
+      .map((c) => {
+        const props = c.properties || {};
+        const { displayName, secondaryLabel } = buildContactDisplay(props, c.id);
+        return {
+          id: c.id,
+          objectType: "contact",
+          displayName,
+          secondaryLabel,
+          reason: "Missing email address"
+        };
+      });
 
-        // Orphan contacts (without lifecycle)
-        if (contactsData.orphanContacts > 0) {
-          const orphan = contacts
-            .filter((c) => !c.properties?.lifecyclestage)
-            .slice(0, 5)
-            .map((c) => {
-              const props = c.properties || {};
-              const displayName = props.firstname && props.lastname
-                ? `${props.firstname} ${props.lastname}`.trim()
-                : props.email || props.company || `Contact ${c.id}`;
-              const secondaryLabel = props.email || props.company || null;
-              
-              return {
-                id: c.id,
-                objectType: "contact",
-                displayName,
-                secondaryLabel,
-                reason: "Not associated with any lifecycle stage"
-              };
-            });
-          
-          if (orphan.length > 0) {
-            affectedObjects.orphanContacts = orphan;
-          }
-        }
-      } catch {
-        // Skip if cannot fetch
-      }
-    }
-  } catch {
-    // Return empty if any error
+    // Stale contacts
+    result.staleContacts = contacts
+      .filter((c) => {
+        if (!c.properties?.hs_lastmodifieddate) return false;
+        const lastModified = new Date(c.properties.hs_lastmodifieddate).getTime();
+        return lastModified && lastModified < twelveMonthsAgo;
+      })
+      .slice(0, 5)
+      .map((c) => {
+        const props = c.properties || {};
+        const { displayName, secondaryLabel } = buildContactDisplay(props, c.id);
+        return {
+          id: c.id,
+          objectType: "contact",
+          displayName,
+          secondaryLabel,
+          reason: "Contact has not been updated in over 12 months"
+        };
+      });
+
+    // Orphan contacts (without lifecycle)
+    result.orphanContacts = contacts
+      .filter((c) => !c.properties?.lifecyclestage)
+      .slice(0, 5)
+      .map((c) => {
+        const props = c.properties || {};
+        const { displayName, secondaryLabel } = buildContactDisplay(props, c.id);
+        return {
+          id: c.id,
+          objectType: "contact",
+          displayName,
+          secondaryLabel,
+          reason: "Contact has no lifecycle stage assigned"
+        };
+      });
+
+    /* --------------------------------
+       DEALS
+    -------------------------------- */
+
+    const dealsRes = await hubspotRequest(
+      token,
+      "/crm/v3/objects/deals?limit=100&properties=dealname,dealstage,amount"
+    );
+
+    const deals = dealsRes.results || [];
+
+    result.dealsWithoutStage = deals
+      .filter((d) => !d.properties?.dealstage)
+      .slice(0, 5)
+      .map((d) => {
+        const props = d.properties || {};
+        const { displayName, secondaryLabel } = buildDealDisplay(props, d.id);
+        return {
+          id: d.id,
+          objectType: "deal",
+          displayName,
+          secondaryLabel: secondaryLabel || null,
+          reason: "Deal has no pipeline stage assigned"
+        };
+      });
+  } catch (err) {
+    // Return empty arrays on error - don't break the scan
   }
 
   // Remove empty arrays
   const cleaned = {};
-  for (const [key, value] of Object.entries(affectedObjects)) {
+  for (const [key, value] of Object.entries(result)) {
     if (value.length > 0) {
       cleaned[key] = value;
     }
@@ -737,69 +739,85 @@ async function getAffectedObjects(token, portalId, usersData, contactsData) {
   return cleaned;
 }
 
+
 /**
  * Generate actionable recommendations
  * References metrics and suggests concrete actions with business value
  */
-function generateRecommendations(usersData, contactsData, hygieneData, structureData) {
+function generateRecommendations({
+  contactsData,
+  usersData,
+  hygieneData,
+  structureData,
+  affectedObjects
+}) {
   const recommendations = [];
 
-  // Users recommendations
+  /* -------------------------
+     CONTACT QUALITY
+  ------------------------- */
+
+  if (affectedObjects.contactsWithoutEmail?.length > 0) {
+    recommendations.push(
+      `Enrich ${contactsData.contactsWithoutEmail} contact(s) with email addresses to enable communication and automation`
+    );
+  }
+
+  if (affectedObjects.staleContacts?.length > 0) {
+    recommendations.push(
+      "Review stale contacts and update or archive records that have not been touched in over 12 months"
+    );
+  }
+
+  if (affectedObjects.orphanContacts?.length > 0) {
+    recommendations.push(
+      "Assign lifecycle stages to contacts to improve segmentation and reporting accuracy"
+    );
+  }
+
+  /* -------------------------
+     USERS
+  ------------------------- */
+
   if (usersData.inactiveUsers > 0) {
-    recommendations.push(`Review and remove ${usersData.inactiveUsers} inactive user${usersData.inactiveUsers > 1 ? "s" : ""} to reduce license waste`);
+    recommendations.push(
+      "Review inactive or suspended users and remove unnecessary access to reduce license waste"
+    );
   }
 
-  // Contact quality recommendations
-  if (contactsData.staleContacts > 0) {
-    recommendations.push(`Archive ${contactsData.staleContacts} stale contact${contactsData.staleContacts > 1 ? "s" : ""} to improve reporting accuracy`);
+  /* -------------------------
+     DEAL STRUCTURE
+  ------------------------- */
+
+  if (affectedObjects.dealsWithoutStage?.length > 0) {
+    recommendations.push(
+      "Ensure all deals are assigned to a pipeline stage to improve forecasting and reporting"
+    );
   }
 
-  if (contactsData.orphanContacts > 0) {
-    recommendations.push(`Assign lifecycle stages to ${contactsData.orphanContacts} contact${contactsData.orphanContacts > 1 ? "s" : ""} to improve pipeline visibility`);
+  if (
+    structureData.dealsToContactsRatio !== null &&
+    structureData.dealsToContactsRatio < 0.01 &&
+    contactsData.totalContacts > 50
+  ) {
+    recommendations.push(
+      "Improve lead qualification and conversion processes to increase the number of contacts progressing to deals"
+    );
   }
 
-  if (contactsData.contactsWithoutEmail > 0) {
-    recommendations.push(`Enrich ${contactsData.contactsWithoutEmail} contact${contactsData.contactsWithoutEmail > 1 ? "s" : ""} with email addresses to enable email marketing`);
-  }
+  /* -------------------------
+     FALLBACK
+  ------------------------- */
 
-  // CRM Hygiene recommendations
-  if (hygieneData.hasWorkflows === false) {
-    recommendations.push("Implement basic lifecycle workflows to align leads with deals");
-  }
-
-  if (hygieneData.lifecycleMisalignment) {
-    recommendations.push("Review and optimize lifecycle stage configuration to match sales process");
-  }
-
-  if (hygieneData.leadsWithoutConversion) {
-    recommendations.push("Implement lead qualification and conversion processes to move leads to deals");
-  }
-
-  // Structural recommendations
-  if (structureData.contactsPerUser > 5000) {
-    recommendations.push("Consider adding users or archiving inactive contacts to balance workload");
-  }
-
-  if (structureData.dealsToContactsRatio > 0 && structureData.dealsToContactsRatio < 0.01) {
-    recommendations.push("Improve lead qualification and sales process alignment to increase conversion");
-  } else if (structureData.dealsToContactsRatio === 0 && contactsData.totalContacts > 100) {
-    recommendations.push("Create deals from qualified contacts to track sales pipeline");
-  }
-
-  // If no specific recommendations but score is low
-  const overallScore = calculateEfficiencyScoreV2(
-    usersData.userEfficiencyScore,
-    contactsData.contactQualityScore,
-    hygieneData.hygieneScore,
-    structureData.structureScore
-  );
-
-  if (recommendations.length === 0 && overallScore < 80) {
-    recommendations.push("Review account configuration and data quality to improve overall efficiency");
+  if (recommendations.length === 0) {
+    recommendations.push(
+      "Continue monitoring account health and maintain current CRM best practices"
+    );
   }
 
   return recommendations;
 }
+
 
 /**
  * Calculate overall Efficiency Score V2
@@ -882,20 +900,31 @@ export default async function scanV2Routes(fastify) {
         structureData.structureScore
       );
 
-      // Generate enhanced insights and recommendations (V2.1)
-      const insights = generateInsights(
-        usersData,
-        contactsData,
-        hygieneData,
-        structureData
-      );
+      // Get affected objects FIRST (needed for insights and recommendations)
+      let affectedObjects = {};
+      try {
+        affectedObjects = await getAffectedObjects(token, portalId);
+      } catch (err) {
+        fastify.log.error(`Failed to get affected objects: ${err.message}`);
+        // Continue with empty affectedObjects
+      }
 
-      const recommendations = generateRecommendations(
+      // Generate enhanced insights and recommendations (V2.1)
+      const insights = generateInsights({
         usersData,
         contactsData,
         hygieneData,
-        structureData
-      );
+        structureData,
+        affectedObjects
+      });
+
+      const recommendations = generateRecommendations({
+        usersData,
+        contactsData,
+        hygieneData,
+        structureData,
+        affectedObjects
+      });
 
       // Generate key metrics (V2.1)
       const keyMetrics = generateKeyMetrics(
@@ -916,14 +945,6 @@ export default async function scanV2Routes(fastify) {
       // Determine conservative estimates flag (V2.1 improved logic)
       const hasCriticalGaps = hasCriticalDataGaps(usersData, contactsData);
       const conservativeEstimates = efficiencyScoreV2 < 90 && hasCriticalGaps;
-
-      // Get affected objects (V2.1 new feature with full context)
-      const affectedObjects = await getAffectedObjects(
-        token,
-        portalId,
-        usersData,
-        contactsData
-      );
 
       // Calculate contact growth risk (reuse existing logic)
       const contactGrowthRisk = calculateContactRiskLevel(
@@ -989,10 +1010,29 @@ export default async function scanV2Routes(fastify) {
       return result;
     } catch (error) {
       fastify.log.error(`Scan V2 error for portal ${portalId}:`, error);
-      return reply.code(500).send({
-        error: "Failed to complete advanced analysis",
-        details: error.message
-      });
+      
+      // Ensure accountOverview is always present even on error
+      const fallbackResult = {
+        portalId: String(portalId),
+        efficiencyScoreV2: 0,
+        summary: "Analysis failed",
+        accountOverview: {
+          totalContacts: 0,
+          totalUsers: 0,
+          contactGrowthRisk: "Medium"
+        },
+        scoreBreakdown: {
+          users: 0,
+          contacts: 0,
+          hygiene: 0,
+          structure: 0
+        },
+        insights: [],
+        recommendations: [],
+        error: "Failed to complete advanced analysis"
+      };
+      
+      return reply.code(500).send(fallbackResult);
     }
   });
 }
