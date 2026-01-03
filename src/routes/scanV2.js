@@ -559,6 +559,139 @@ function generateInsights(usersData, contactsData, hygieneData, structureData) {
 }
 
 /**
+ * Determine if there are critical data gaps
+ * Only true if we cannot read essential data (users, contacts)
+ * NOT based on HubSpot plan or missing workflows
+ */
+function hasCriticalDataGaps(usersData, contactsData) {
+  // Critical: Cannot read users list
+  if (usersData.limitedVisibility && usersData.totalUsers === 0) {
+    return true;
+  }
+  
+  // Critical: Cannot read contacts
+  if (contactsData.limitedVisibility && contactsData.totalContacts === 0) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Get affected objects (limited to 5 per type for preview)
+ * Returns objects that are mentioned in insights
+ */
+async function getAffectedObjects(token, usersData, contactsData) {
+  const affectedObjects = {
+    contactsWithoutEmail: [],
+    staleContacts: [],
+    orphanContacts: [],
+    inactiveUsers: []
+  };
+
+  try {
+    // Get inactive users (max 5)
+    if (usersData.inactiveUsers > 0) {
+      try {
+        const usersRes = await hubspotRequest(token, "/settings/v3/users");
+        const inactiveUsers = (usersRes?.results || [])
+          .filter((u) => u.isSuspended === true || !u.email)
+          .slice(0, 5)
+          .map((u) => ({
+            id: String(u.id || ""),
+            email: u.email || "No email"
+          }));
+        
+        if (inactiveUsers.length > 0) {
+          affectedObjects.inactiveUsers = inactiveUsers;
+        }
+      } catch {
+        // Skip if cannot fetch
+      }
+    }
+
+    // Get contacts with issues (max 5 per type)
+    if (contactsData.totalContacts > 0) {
+      try {
+        const contacts = await getAllContactsDetailed(token);
+        const now = Date.now();
+        const twelveMonthsAgo = now - 365 * 24 * 60 * 60 * 1000;
+
+        // Contacts without email
+        if (contactsData.contactsWithoutEmail > 0) {
+          const withoutEmail = contacts
+            .filter((c) => !c.properties?.email)
+            .slice(0, 5)
+            .map((c) => ({
+              id: c.id,
+              name: c.properties?.firstname && c.properties?.lastname
+                ? `${c.properties.firstname} ${c.properties.lastname}`.trim()
+                : c.properties?.email || c.properties?.company || "Unnamed contact"
+            }));
+          
+          if (withoutEmail.length > 0) {
+            affectedObjects.contactsWithoutEmail = withoutEmail;
+          }
+        }
+
+        // Stale contacts
+        if (contactsData.staleContacts > 0) {
+          const stale = contacts
+            .filter((c) => {
+              const lastModified = c.properties?.hs_lastmodifieddate
+                ? new Date(c.properties.hs_lastmodifieddate).getTime()
+                : null;
+              return lastModified && lastModified < twelveMonthsAgo;
+            })
+            .slice(0, 5)
+            .map((c) => ({
+              id: c.id,
+              name: c.properties?.firstname && c.properties?.lastname
+                ? `${c.properties.firstname} ${c.properties.lastname}`.trim()
+                : c.properties?.email || c.properties?.company || "Unnamed contact"
+            }));
+          
+          if (stale.length > 0) {
+            affectedObjects.staleContacts = stale;
+          }
+        }
+
+        // Orphan contacts (without lifecycle)
+        if (contactsData.orphanContacts > 0) {
+          const orphan = contacts
+            .filter((c) => !c.properties?.lifecyclestage)
+            .slice(0, 5)
+            .map((c) => ({
+              id: c.id,
+              name: c.properties?.firstname && c.properties?.lastname
+                ? `${c.properties.firstname} ${c.properties.lastname}`.trim()
+                : c.properties?.email || c.properties?.company || "Unnamed contact"
+            }));
+          
+          if (orphan.length > 0) {
+            affectedObjects.orphanContacts = orphan;
+          }
+        }
+      } catch {
+        // Skip if cannot fetch
+      }
+    }
+  } catch {
+    // Return empty if any error
+  }
+
+  // Remove empty arrays
+  const cleaned = {};
+  for (const [key, value] of Object.entries(affectedObjects)) {
+    if (value.length > 0) {
+      cleaned[key] = value;
+    }
+  }
+
+  return cleaned;
+}
+
+/**
  * Generate actionable recommendations
  * References metrics and suggests concrete actions with business value
  */
@@ -734,6 +867,17 @@ export default async function scanV2Routes(fastify) {
         structureData
       );
 
+      // Determine conservative estimates flag (V2.1 improved logic)
+      const hasCriticalGaps = hasCriticalDataGaps(usersData, contactsData);
+      const conservativeEstimates = efficiencyScoreV2 < 90 && hasCriticalGaps;
+
+      // Get affected objects (V2.1 new feature)
+      const affectedObjects = await getAffectedObjects(
+        token,
+        usersData,
+        contactsData
+      );
+
       // Build response (V2.1 format)
       const result = {
         portalId: String(portalId),
@@ -745,15 +889,12 @@ export default async function scanV2Routes(fastify) {
           hygiene: hygieneData.hygieneScore,
           structure: structureData.structureScore
         },
-        scoreExplanation, // NEW: Explains why each area has its score
-        keyMetrics, // NEW: Exposes raw metrics
-        insights, // Enhanced: Quantified insights only
-        recommendations, // Enhanced: Actionable with metrics
-        limitedVisibility:
-          usersData.limitedVisibility ||
-          contactsData.limitedVisibility ||
-          hygieneData.limitedVisibility ||
-          structureData.limitedVisibility
+        scoreExplanation, // Explains why each area has its score
+        keyMetrics, // Exposes raw metrics
+        insights, // Quantified insights only
+        recommendations, // Actionable with metrics
+        conservativeEstimates, // NEW: Only true if critical data gaps AND score < 90
+        affectedObjects: Object.keys(affectedObjects).length > 0 ? affectedObjects : undefined // NEW: Preview of affected objects
       };
 
       // Save to database
