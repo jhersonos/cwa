@@ -175,11 +175,12 @@ async function analyzeUsersEfficiency(token) {
       estimatedMonthlyWaste,
       limitedVisibility: false
     };
-  }catch {
+  } catch {
+    // Only return neutral values if we truly cannot read users
     return {
-      totalUsers: 1, // 👈 valor neutral
+      totalUsers: 0,
       inactiveUsers: 0,
-      userEfficiencyScore: 80,
+      userEfficiencyScore: 50,
       estimatedMonthlyWaste: 0,
       limitedVisibility: true
     };
@@ -617,18 +618,19 @@ function generateInsights({
   }
 
   /* -------------------------
-     FALLBACK (REAL, NO FALSO POSITIVO)
+     FALLBACK (solo si realmente no hay problemas)
   ------------------------- */
 
-  const hasAnySignal =
-  contactsData.contactsWithoutEmail > 0 ||
-  contactsData.staleContacts > 0 ||
-  contactsData.orphanContacts > 0 ||
-  usersData.inactiveUsers > 0 ||
-  (affectedObjects && Object.keys(affectedObjects).length > 0);
+  // Solo mostrar fallback si NO hay problemas reales detectados
+  const hasRealProblems =
+    contactsData.contactsWithoutEmail > 0 ||
+    contactsData.staleContacts > 0 ||
+    contactsData.orphanContacts > 0 ||
+    usersData.inactiveUsers > 0 ||
+    (affectedObjects?.dealsWithoutStage && affectedObjects.dealsWithoutStage.length > 0);
 
-  if (insights.length === 0 && hasAnySignal) {
-    insights.push("No critical issues detected. Your account is operating within healthy parameters.");
+  if (insights.length === 0 && !hasRealProblems) {
+    insights.push("No significant issues detected");
   }
 
   return insights;
@@ -960,33 +962,15 @@ export default async function scanV2Routes(fastify) {
         structureData.structureScore
       );
 
-      // Get affected objects FIRST (needed for insights and recommendations)
+      // Get affected objects (PREVIEW ONLY - max 5 per type)
+      // NOTE: affectedObjects is for UI preview, NOT for metrics calculation
+      // Metrics come from analyzeContactQuality() and analyzeUsersEfficiency()
       let affectedObjects = {};
       try {
         affectedObjects = await getAffectedObjects(token, portalId);
-        // 🔥 SYNC FALLBACK METRICS FROM AFFECTED OBJECTS
-if (Object.keys(affectedObjects).length > 0) {
-  contactsData.contactsWithoutEmail =
-    affectedObjects.contactsWithoutEmail?.length ?? contactsData.contactsWithoutEmail ?? 0;
-
-  contactsData.staleContacts =
-    affectedObjects.staleContacts?.length ?? contactsData.staleContacts ?? 0;
-
-  contactsData.orphanContacts =
-    affectedObjects.orphanContacts?.length ?? contactsData.orphanContacts ?? 0;
-
-  if (contactsData.totalContacts === 0) {
-    contactsData.totalContacts =
-      contactsData.contactsWithoutEmail +
-      contactsData.staleContacts +
-      contactsData.orphanContacts;
-  }
-
-  contactsData.limitedVisibility = false; // 🔥 CLAVE
-}
       } catch (err) {
         fastify.log.error(`Failed to get affected objects: ${err.message}`);
-        // Continue with empty affectedObjects
+        // Continue with empty affectedObjects - metrics are already calculated
       }
 
       // Generate enhanced insights and recommendations (V2.1)
@@ -1038,8 +1022,8 @@ if (Object.keys(affectedObjects).length > 0) {
         efficiencyScoreV2,
         summary: generateSummary(efficiencyScoreV2),
         accountOverview: {
-          totalContacts: contactsData.totalContacts || 0,
-          totalUsers: usersData.totalUsers || 0,
+          totalContacts: contactsData.totalContacts ?? 0,
+          totalUsers: usersData.totalUsers ?? 0,
           contactGrowthRisk
         },
         scoreBreakdown: {
