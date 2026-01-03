@@ -684,12 +684,18 @@ async function getAffectedObjects(token, portalId) {
        CONTACTS
     -------------------------------- */
 
-    const contactsRes = await hubspotRequest(
-      token,
-      "/crm/v3/objects/contacts?limit=100&properties=firstname,lastname,email,phone,lifecyclestage,hs_lastmodifieddate,company"
-    );
-
-    const contacts = contactsRes.results || [];
+    let after;
+    const contacts = [];
+    
+    do {
+      const res = await hubspotRequest(
+        token,
+        `/crm/v3/objects/contacts?limit=100&properties=firstname,lastname,email,phone,lifecyclestage,hs_lastmodifieddate,company${after ? `&after=${after}` : ""}`
+      );
+    
+      if (res.results) contacts.push(...res.results);
+      after = res.paging?.next?.after;
+    } while (after && contacts.length < 500);
     const now = Date.now();
     const twelveMonthsAgo = now - 365 * 24 * 60 * 60 * 1000;
 
@@ -943,10 +949,25 @@ export default async function scanV2Routes(fastify) {
 
     const token = rows[0].access_token;
 
+    fastify.log.info(
+      {
+        portalId,
+        hasToken: !!token
+      },
+      "SCAN CONTEXT"
+    );
+
     try {
       // Run all analyses
       const usersData = await analyzeUsersEfficiency(token);
       const contactsData = await analyzeContactQuality(token);
+      fastify.log.info(
+        {
+          totalContacts: contactsData.totalContacts,
+          limitedVisibility: contactsData.limitedVisibility
+        },
+        "CONTACT QUALITY RESULT"
+      );
       const hygieneData = await analyzeCRMHygiene(token);
       const structureData = await analyzeStructuralAlignment(
         token,
@@ -1100,4 +1121,3 @@ export default async function scanV2Routes(fastify) {
     }
   });
 }
-
