@@ -13,7 +13,8 @@ export default async function oauthRoutes(fastify) {
       "crm.objects.companies.read",
       "crm.objects.deals.read",
       "crm.objects.owners.read",
-      "settings.users.read"
+      "settings.users.read",
+      "automation" // 👈 CLAVE
     ].join(" ");
 
     const authUrl =
