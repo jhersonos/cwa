@@ -65,7 +65,7 @@ async function getAllContactsDetailed(token) {
 
     return contacts;
   } catch (err) {
-    return null; // 👈 CLAVE
+    return []; // 🔥 SIEMPRE array, nunca null
   }
 }
 
@@ -212,10 +212,11 @@ async function analyzeContactQuality(token) {
         orphanContacts: 0,
         contactsWithoutEmail: 0,
         contactsWithoutLifecycle: 0,
-        contactQualityScore: 80, // 👈 importante
+        contactQualityScore: 50,
         limitedVisibility: false
       };
     }
+    
     
 
     const now = Date.now();
@@ -322,6 +323,18 @@ async function analyzeCRMHygiene(token) {
     // Check for leads without conversion
     // This is simplified - in production you'd check associations properly
     const contacts = await getAllContactsDetailed(token);
+
+if (!Array.isArray(contacts) || contacts.length === 0) {
+  return {
+    hasWorkflows,
+    lifecycleMisalignment: false,
+    leadsWithoutConversion: false,
+    leadsCount: 0,
+    hygieneScore: score,
+    limitedVisibility: true
+  };
+}
+
     const contactsWithLifecycle = contacts.filter(
       (c) => c.properties?.lifecyclestage
     );
@@ -547,19 +560,19 @@ function generateInsights({
      CONTACT QUALITY
   ------------------------- */
 
-  if (affectedObjects.contactsWithoutEmail?.length > 0) {
+  if (contactsData.contactsWithoutEmail > 0) {
     insights.push(
       `${contactsData.contactsWithoutEmail} contact(s) are missing an email address`
     );
   }
 
-  if (affectedObjects.staleContacts?.length > 0) {
+  if (contactsData.staleContacts > 0) {
     insights.push(
       `${contactsData.staleContacts} contact(s) have not been updated in over 12 months`
     );
   }
 
-  if (affectedObjects.orphanContacts?.length > 0) {
+  if (contactsData.orphanContacts > 0) {
     insights.push(
       `${contactsData.orphanContacts} contact(s) are not assigned to any lifecycle stage`
     );
@@ -579,14 +592,14 @@ function generateInsights({
      DEAL STRUCTURE
   ------------------------- */
 
-  if (affectedObjects.dealsWithoutStage?.length > 0) {
+  if (affectedObjects?.dealsWithoutStage?.length > 0) {
     insights.push(
       `${affectedObjects.dealsWithoutStage.length} deal(s) have no pipeline stage assigned`
     );
   }
 
   if (
-    structureData.dealsToContactsRatio !== null &&
+    typeof structureData.dealsToContactsRatio === "number" &&
     structureData.dealsToContactsRatio < 0.01 &&
     contactsData.totalContacts > 50
   ) {
@@ -596,11 +609,28 @@ function generateInsights({
   }
 
   /* -------------------------
-     FALLBACK
+     CRM HYGIENE (light signals)
   ------------------------- */
 
-  if (insights.length === 0) {
-    insights.push("No significant issues detected");
+  if (hygieneData?.leadsWithoutConversion) {
+    insights.push(
+      "Leads are being created but are not converting into deals"
+    );
+  }
+
+  /* -------------------------
+     FALLBACK (REAL, NO FALSO POSITIVO)
+  ------------------------- */
+
+  const hasAnySignal =
+  contactsData.contactsWithoutEmail > 0 ||
+  contactsData.staleContacts > 0 ||
+  contactsData.orphanContacts > 0 ||
+  usersData.inactiveUsers > 0 ||
+  (affectedObjects && Object.keys(affectedObjects).length > 0);
+
+  if (insights.length === 0 && hasAnySignal) {
+    insights.push("No critical issues detected at this time");
   }
 
   return insights;
@@ -626,16 +656,14 @@ function calculateContactRiskLevel(totalContacts, totalUsers) {
  * NOT based on HubSpot plan or missing workflows
  */
 function hasCriticalDataGaps(usersData, contactsData) {
-  // Critical: Cannot read users list
   if (usersData.limitedVisibility && usersData.totalUsers === 0) {
     return true;
   }
-  
-  // Critical: Cannot read contacts
+
   if (contactsData.limitedVisibility && contactsData.totalContacts === 0) {
     return true;
   }
-  
+
   return false;
 }
 
@@ -775,56 +803,72 @@ function generateRecommendations({
      CONTACT QUALITY
   ------------------------- */
 
-  if (affectedObjects.contactsWithoutEmail?.length > 0) {
+  if (contactsData.contactsWithoutEmail > 0) {
     recommendations.push(
-      `Enrich ${contactsData.contactsWithoutEmail} contact(s) with email addresses to enable communication and automation`
+      `Enrich ${contactsData.contactsWithoutEmail} contact(s) with email addresses to enable email marketing, automation, and reporting`
     );
   }
 
-  if (affectedObjects.staleContacts?.length > 0) {
+  if (contactsData.staleContacts > 0) {
     recommendations.push(
-      "Review stale contacts and update or archive records that have not been touched in over 12 months"
+      "Review stale contacts and update or archive records that have not been modified in over 12 months"
     );
   }
 
-  if (affectedObjects.orphanContacts?.length > 0) {
+  if (contactsData.orphanContacts > 0) {
     recommendations.push(
-      "Assign lifecycle stages to contacts to improve segmentation and reporting accuracy"
+      "Assign lifecycle stages to contacts to improve segmentation, funnel visibility, and CRM reporting accuracy"
     );
   }
 
   /* -------------------------
-     USERS
+     USERS & LICENSING
   ------------------------- */
 
   if (usersData.inactiveUsers > 0) {
     recommendations.push(
-      "Review inactive or suspended users and remove unnecessary access to reduce license waste"
+      "Review inactive or suspended users and remove unnecessary access to reduce operational and licensing waste"
     );
   }
 
   /* -------------------------
-     DEAL STRUCTURE
+     DEAL & PIPELINE STRUCTURE
   ------------------------- */
 
-  if (affectedObjects.dealsWithoutStage?.length > 0) {
+  if (affectedObjects?.dealsWithoutStage?.length > 0) {
     recommendations.push(
-      "Ensure all deals are assigned to a pipeline stage to improve forecasting and reporting"
+      "Ensure all deals are assigned to a pipeline stage to improve forecasting accuracy and sales visibility"
     );
   }
 
   if (
-    structureData.dealsToContactsRatio !== null &&
+    typeof structureData.dealsToContactsRatio === "number" &&
     structureData.dealsToContactsRatio < 0.01 &&
     contactsData.totalContacts > 50
   ) {
     recommendations.push(
-      "Improve lead qualification and conversion processes to increase the number of contacts progressing to deals"
+      "Improve lead qualification and sales alignment to increase the percentage of contacts converting into deals"
     );
   }
 
   /* -------------------------
-     FALLBACK
+     CRM HYGIENE
+  ------------------------- */
+
+  if (hygieneData?.leadsWithoutConversion) {
+    recommendations.push(
+      "Review lead follow-up processes to ensure new leads are actively worked and progressed into the sales pipeline"
+    );
+  }
+
+  if (hygieneData?.hasWorkflows === false) {
+    recommendations.push(
+      "Consider implementing workflows to automate lead routing, lifecycle updates, and internal notifications"
+    );
+  }
+
+  /* -------------------------
+     FALLBACK (NO VACÍOS)
   ------------------------- */
 
   if (recommendations.length === 0) {
@@ -922,6 +966,26 @@ export default async function scanV2Routes(fastify) {
       let affectedObjects = {};
       try {
         affectedObjects = await getAffectedObjects(token, portalId);
+        // 🔥 SYNC FALLBACK METRICS FROM AFFECTED OBJECTS
+if (Object.keys(affectedObjects).length > 0) {
+  contactsData.contactsWithoutEmail =
+    affectedObjects.contactsWithoutEmail?.length ?? contactsData.contactsWithoutEmail ?? 0;
+
+  contactsData.staleContacts =
+    affectedObjects.staleContacts?.length ?? contactsData.staleContacts ?? 0;
+
+  contactsData.orphanContacts =
+    affectedObjects.orphanContacts?.length ?? contactsData.orphanContacts ?? 0;
+
+  if (contactsData.totalContacts === 0) {
+    contactsData.totalContacts =
+      contactsData.contactsWithoutEmail +
+      contactsData.staleContacts +
+      contactsData.orphanContacts;
+  }
+
+  contactsData.limitedVisibility = false; // 🔥 CLAVE
+}
       } catch (err) {
         fastify.log.error(`Failed to get affected objects: ${err.message}`);
         // Continue with empty affectedObjects
