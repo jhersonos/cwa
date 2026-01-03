@@ -46,22 +46,27 @@ function buildContactDisplay(props, id) {
  * Fetch all contacts with pagination
  */
 async function getAllContactsDetailed(token) {
-  let after;
-  const contacts = [];
+  try {
+    let after;
+    const contacts = [];
 
-  do {
-    const res = await hubspotRequest(
-      token,
-      `/crm/v3/objects/contacts?limit=100&properties=email,lifecyclestage,hs_lastmodifieddate,hs_createdate${after ? `&after=${after}` : ""}`
-    );
+    do {
+      const res = await hubspotRequest(
+        token,
+        `/crm/v3/objects/contacts?limit=100&properties=email,lifecyclestage,hs_lastmodifieddate,hs_createdate${after ? `&after=${after}` : ""}`
+      );
 
-    if (res.results) {
-      contacts.push(...res.results);
-    }
-    after = res.paging?.next?.after;
-  } while (after);
+      if (res?.results) {
+        contacts.push(...res.results);
+      }
 
-  return contacts;
+      after = res?.paging?.next?.after;
+    } while (after);
+
+    return contacts;
+  } catch (err) {
+    return null; // 👈 CLAVE
+  }
 }
 
 /**
@@ -172,11 +177,11 @@ async function analyzeUsersEfficiency(token) {
       estimatedMonthlyWaste,
       limitedVisibility: false
     };
-  } catch (err) {
+  }catch {
     return {
-      totalUsers: 0,
+      totalUsers: 1, // 👈 valor neutral
       inactiveUsers: 0,
-      userEfficiencyScore: 50,
+      userEfficiencyScore: 80,
       estimatedMonthlyWaste: 0,
       limitedVisibility: true
     };
@@ -190,7 +195,7 @@ async function analyzeContactQuality(token) {
   try {
     const contacts = await getAllContactsDetailed(token);
 
-    if (contacts.length === 0) {
+    if (!Array.isArray(contacts)) {
       return {
         totalContacts: 0,
         staleContacts: 0,
@@ -199,6 +204,19 @@ async function analyzeContactQuality(token) {
         limitedVisibility: true
       };
     }
+    
+    if (contacts.length === 0) {
+      return {
+        totalContacts: 0,
+        staleContacts: 0,
+        orphanContacts: 0,
+        contactsWithoutEmail: 0,
+        contactsWithoutLifecycle: 0,
+        contactQualityScore: 80, // 👈 importante
+        limitedVisibility: false
+      };
+    }
+    
 
     const now = Date.now();
     const twelveMonthsAgo = now - 365 * 24 * 60 * 60 * 1000;
