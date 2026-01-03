@@ -2,201 +2,147 @@ import { hubspotRequest } from "../services/hubspot.js";
 
 const scanCache = new Map();
 
-/* =========================
-   DEBUG HELPERS
-========================= */
+/* -------------------------
+   HELPERS
+------------------------- */
 
-function logSection(fastify, title) {
-  fastify.log.info(" ");
-  fastify.log.info("====================================");
-  fastify.log.info(title);
-  fastify.log.info("====================================");
-}
-
-/* =========================
-   CONTACTS
-========================= */
-
-async function getAllContacts(token, fastify) {
-  let after = undefined;
+async function getAllContacts(token) {
+  let after;
   let total = 0;
-  let page = 1;
 
   do {
-    fastify.log.info(`[CONTACTS] Fetch page ${page} | after=${after || "none"}`);
-
     const res = await hubspotRequest(
       token,
       `/crm/v3/objects/contacts?limit=100${after ? `&after=${after}` : ""}`
     );
 
-    fastify.log.info(
-      `[CONTACTS] Response keys: ${Object.keys(res || {}).join(", ")}`
-    );
-
-    fastify.log.info(
-      `[CONTACTS] Results length: ${res?.results?.length || 0}`
-    );
-
-    total += res?.results?.length || 0;
-    after = res?.paging?.next?.after;
-
-    page++;
+    total += res.results?.length || 0;
+    after = res.paging?.next?.after;
   } while (after);
-
-  fastify.log.info(`[CONTACTS] TOTAL CONTACTS COUNTED: ${total}`);
 
   return total;
 }
 
-/* =========================
-   USERS
-========================= */
+function calculateEfficiencyScore(totalContacts, totalUsers, inactiveUsers) {
+  let score = 100;
 
-async function getUsers(token, fastify) {
-  try {
-    const res = await hubspotRequest(token, "/settings/v3/users");
-
-    fastify.log.info(
-      `[USERS] Response keys: ${Object.keys(res || {}).join(", ")}`
-    );
-    fastify.log.info(
-      `[USERS] Users length: ${res?.results?.length || 0}`
-    );
-
-    if (res?.results?.length) {
-      res.results.forEach((u, i) => {
-        fastify.log.info(
-          `[USERS] #${i + 1} | email=${u.email} | suspended=${u.isSuspended}`
-        );
-      });
-    }
-
-    return res;
-  } catch (err) {
-    fastify.log.error("[USERS] ERROR calling users endpoint", err);
-    return null;
+  if (totalUsers > 0) {
+    const ratio = totalContacts / totalUsers;
+    if (ratio > 5000) score -= 20;
+    else if (ratio > 3000) score -= 10;
   }
+
+  if (totalUsers > 0) {
+    const inactiveRatio = inactiveUsers / totalUsers;
+    if (inactiveRatio > 0.3) score -= 25;
+    else if (inactiveRatio > 0.2) score -= 15;
+    else if (inactiveRatio > 0.1) score -= 5;
+  }
+
+  if (totalContacts > 50000) score -= 15;
+  else if (totalContacts > 20000) score -= 5;
+
+  return Math.max(40, Math.min(100, Math.round(score)));
 }
 
-/* =========================
-   ROUTES
-========================= */
+function calculateContactRiskLevel(totalContacts, totalUsers) {
+  if (totalUsers === 0) return "medium";
+  const ratio = totalContacts / totalUsers;
+  if (ratio > 5000) return "high";
+  if (ratio > 3000) return "medium";
+  return "low";
+}
+
+function detectIssues(totalContacts, totalUsers, inactiveUsers) {
+  const issues = [];
+
+  const ratio = totalContacts / totalUsers;
+  const inactiveRatio = totalUsers ? inactiveUsers / totalUsers : 0;
+
+  if (ratio > 5000) issues.push("Very high contact-to-user ratio detected");
+  if (inactiveRatio > 0.3) issues.push("High percentage of inactive users");
+  if (totalContacts > 50000)
+    issues.push("Large contact database may need optimization");
+
+  if (!issues.length) issues.push("No significant issues detected");
+
+  return issues;
+}
+
+/* -------------------------
+   ROUTE
+------------------------- */
 
 export default async function scanRoutes(fastify) {
   fastify.get("/api/scan", async (req, reply) => {
-    logSection(fastify, "SCAN REQUEST RECEIVED");
+    const portalId = req.headers["x-portal-id"];
 
-    fastify.log.info("HEADERS RECEIVED:");
-    Object.entries(req.headers).forEach(([k, v]) => {
-      fastify.log.info(`  ${k}: ${v}`);
-    });
-
-    /* -------------------------
-       PORTAL CONTEXT
-    ------------------------- */
-
-    const headerPortalId =
-      req.headers["x-portal-id"] ||
-      req.headers["x-hubspot-portal-id"] ||
-      req.headers["x-hubspot-account-id"];
-
-    fastify.log.info(`HEADER portalId: ${headerPortalId || "NONE"}`);
-
-    logSection(fastify, "DATABASE PORTALS");
-
-    const [rows] = await fastify.db.execute(
-      "SELECT portal_id, access_token FROM portals"
-    );
-
-    fastify.log.info(`Portals in DB: ${rows.length}`);
-
-    rows.forEach((r, i) => {
-      fastify.log.info(
-        `#${i + 1} portal_id=${r.portal_id} token_present=${!!r.access_token}`
-      );
-    });
-
-    if (!rows.length) {
-      fastify.log.error("NO PORTALS IN DATABASE");
-      return reply.code(401).send({ error: "No portals connected" });
+    if (!portalId) {
+      return reply.code(401).send({ error: "Missing portal context" });
     }
 
-    /* ⚠️ DEBUG MODE: always use FIRST portal */
-    const portalId = rows[0].portal_id;
-    const token = rows[0].access_token;
-
-    fastify.log.info(`USING portalId=${portalId}`);
-
-    /* -------------------------
-       CACHE
-    ------------------------- */
-
-    const cacheKey = String(portalId);
-    const cached = scanCache.get(cacheKey);
-
-    if (cached) {
-      fastify.log.info("RETURNING CACHED RESULT");
+    const cached = scanCache.get(portalId);
+    if (cached && Date.now() - cached.timestamp < 60_000) {
       return cached.result;
     }
 
-    try {
-      /* -------------------------
-         CONTACTS
-      ------------------------- */
+    const [rows] = await fastify.db.execute(
+      "SELECT access_token FROM portals WHERE portal_id = ?",
+      [portalId]
+    );
 
-      logSection(fastify, "FETCHING CONTACTS");
-      const totalContacts = await getAllContacts(token, fastify);
-
-      /* -------------------------
-         USERS
-      ------------------------- */
-
-      logSection(fastify, "FETCHING USERS");
-      const usersRes = await getUsers(token, fastify);
-      const totalUsers = usersRes?.results?.length || 0;
-
-      /* -------------------------
-         INACTIVE USERS
-      ------------------------- */
-
-      const inactiveUsers = usersRes?.results
-        ? usersRes.results.filter(
-            (u) => u.isSuspended || !u.email
-          ).length
-        : 0;
-
-      fastify.log.info(`Inactive users: ${inactiveUsers}`);
-
-      /* -------------------------
-         FINAL RESULT
-      ------------------------- */
-
-      const result = {
-        portalId: String(portalId),
-        efficiencyScore: 999, // 🔴 TEMPORAL PARA DEBUG
-        totalContacts,
-        totalUsers,
-        inactiveUsers,
-        contactRiskLevel: "low",
-        detectedIssues: ["DEBUG MODE ENABLED"]
-      };
-
-      fastify.log.info("FINAL RESULT:");
-      fastify.log.info(JSON.stringify(result, null, 2));
-
-      scanCache.set(cacheKey, {
-        timestamp: Date.now(),
-        result
-      });
-
-      return result;
-    } catch (error) {
-      fastify.log.error("SCAN FAILED", error);
-      return reply.code(500).send({
-        error: "Scan failed",
-        details: error.message
-      });
+    if (!rows.length) {
+      return reply.code(401).send({ error: "Portal not connected" });
     }
+
+    const token = rows[0].access_token;
+
+    const totalContacts = await getAllContacts(token);
+
+    let usersRes;
+    try {
+      usersRes = await hubspotRequest(token, "/settings/v3/users");
+    } catch {
+      usersRes = null;
+    }
+
+    const totalUsers = usersRes?.results?.length || 1;
+    const inactiveUsers = usersRes?.results
+      ? usersRes.results.filter(u => u.isSuspended || !u.email).length
+      : 0;
+
+    const efficiencyScore = calculateEfficiencyScore(
+      totalContacts,
+      totalUsers,
+      inactiveUsers
+    );
+
+    const contactRiskLevel = calculateContactRiskLevel(
+      totalContacts,
+      totalUsers
+    );
+
+    const detectedIssues = detectIssues(
+      totalContacts,
+      totalUsers,
+      inactiveUsers
+    );
+
+    const result = {
+      portalId: String(portalId),
+      efficiencyScore,
+      totalContacts,
+      totalUsers,
+      inactiveUsers,
+      contactRiskLevel,
+      detectedIssues
+    };
+
+    scanCache.set(portalId, {
+      timestamp: Date.now(),
+      result
+    });
+
+    return result;
   });
 }
