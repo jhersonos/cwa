@@ -27,6 +27,19 @@ export async function analyzeWorkflows(server, portalId, token) {
       after = res.data.paging?.next?.after;
     } while (after);
   } catch (error) {
+    // Detectar errores de permisos (403, 401) - cuentas Free/Starter
+    const status = error.response?.status;
+    const isPermissionError = status === 403 || status === 401;
+    
+    // Log solo si es un error inesperado (no de permisos)
+    if (!isPermissionError && server?.log) {
+      server.log.warn(
+        { err: error, portalId, status },
+        "Workflows analysis failed (non-permission error)"
+      );
+    }
+    
+    // Retornar objeto vacío con limitedVisibility
     return {
       total: 0,
       inactive: 0,
