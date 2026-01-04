@@ -42,7 +42,7 @@ export async function runScanV3(req, reply) {
     const [contacts, users, deals] = await Promise.all([
       analyzeContacts(req.server, portalId, token),
       analyzeUsers(req.server, portalId, token),
-      analyzeDeals({ portalId, accessToken: token })
+      analyzeDeals(req.server, portalId, token)
     ]);
 
     

@@ -1,4 +1,7 @@
-import { hubspotRequest } from "../hubspot.js";
+// src/services/analysis/deals.analysis.js
+import axios from "axios";
+
+const HUBSPOT_API = "https://api.hubapi.com";
 
 /* ----------------------------------
    HELPERS
@@ -26,108 +29,126 @@ function normalizeDeal(deal) {
    MAIN ANALYSIS FUNCTION
 ---------------------------------- */
 
-export async function analyzeDeals({ portalId, accessToken }) {
+export async function analyzeDeals(fastify, portalId, token) {
+  let deals = [];
+  let limitedVisibility = false;
+
   try {
-    /* ----------------------------------
-       1. GET DEALS
-    ---------------------------------- */
-
-    const dealsResponse = await hubspotRequest({
-      accessToken,
-      method: "GET",
-      endpoint: "/crm/v3/objects/deals",
-      params: {
-        limit: 100,
-        properties: ["dealname", "dealstage", "amount", "hubspot_owner_id"]
-      }
-    });
-
-    const deals = dealsResponse?.results || [];
-    const totalDeals = deals.length;
-
-    if (!totalDeals) {
-      return {
-        total: 0,
-        withoutContact: {
-          count: 0,
-          percentage: 0,
-          score: 100,
-          items: []
+    const res = await axios.get(
+      `${HUBSPOT_API}/crm/v3/objects/deals`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
         },
-        withoutOwner: {
-          count: 0,
-          percentage: 0,
-          score: 100,
-          items: []
-        }
-      };
-    }
-
-    /* ----------------------------------
-       2. CHECK CONTACT ASSOCIATIONS
-    ---------------------------------- */
-
-    const dealsWithoutContact = [];
-
-    for (const deal of deals) {
-      const assocResponse = await hubspotRequest({
-        accessToken,
-        method: "GET",
-        endpoint: `/crm/v3/objects/deals/${deal.id}/associations/contacts`
-      });
-
-      const hasContacts =
-        Array.isArray(assocResponse?.results) &&
-        assocResponse.results.length > 0;
-
-      if (!hasContacts) {
-        dealsWithoutContact.push(normalizeDeal(deal));
+        params: {
+          limit: 100,
+          properties: [
+            "dealname",
+            "dealstage",
+            "amount",
+            "hubspot_owner_id"
+          ].join(",")
+        },
+        timeout: 8000
       }
+    );
+
+    deals = res.data?.results || [];
+  } catch (err) {
+    const status = err?.response?.status;
+
+    if (status === 401 || status === 403 || status === 429) {
+      limitedVisibility = true;
+      deals = [];
+    } else {
+      fastify.log.error(
+        { err, portalId },
+        "Deal analysis failed unexpectedly"
+      );
+      limitedVisibility = true;
+      deals = [];
     }
+  }
 
-    const withoutContactCount = dealsWithoutContact.length;
-    const withoutContactPercentage = Number(
-      ((withoutContactCount / totalDeals) * 100).toFixed(1)
-    );
+  const totalDeals = deals.length;
 
-    /* ----------------------------------
-       3. CHECK OWNER
-    ---------------------------------- */
-
-    const dealsWithoutOwner = deals
-      .filter(deal => !deal.properties?.hubspot_owner_id)
-      .map(normalizeDeal);
-
-    const withoutOwnerCount = dealsWithoutOwner.length;
-    const withoutOwnerPercentage = Number(
-      ((withoutOwnerCount / totalDeals) * 100).toFixed(1)
-    );
-
-    /* ----------------------------------
-       4. RETURN FINAL RESULT
-    ---------------------------------- */
-
+  if (totalDeals === 0) {
     return {
-      total: totalDeals,
+      total: 0,
       withoutContact: {
-        count: withoutContactCount,
-        percentage: withoutContactPercentage,
-        score: calculateScore(withoutContactPercentage),
-        items: dealsWithoutContact
+        count: 0,
+        percentage: 0,
+        score: 100,
+        items: []
       },
       withoutOwner: {
-        count: withoutOwnerCount,
-        percentage: withoutOwnerPercentage,
-        score: calculateScore(withoutOwnerPercentage),
-        items: dealsWithoutOwner
-      }
-    };
-  } catch (error) {
-    console.error("[Deals Analysis Error]", error?.response?.data || error);
-
-    return {
-      limitedVisibility: true,
-      error: "Unable to analyze deals with current permissions"
+        count: 0,
+        percentage: 0,
+        score: 100,
+        items: []
+      },
+      limitedVisibility
     };
   }
+
+  /* ----------------------------------
+     CONTACT ASSOCIATIONS
+  ---------------------------------- */
+
+  const dealsWithoutContact = [];
+
+  for (const deal of deals) {
+    try {
+      const assocRes = await axios.get(
+        `${HUBSPOT_API}/crm/v3/objects/deals/${deal.id}/associations/contacts`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          },
+          timeout: 6000
+        }
+      );
+
+      if (!assocRes.data?.results?.length) {
+        dealsWithoutContact.push(normalizeDeal(deal));
+      }
+    } catch {
+      limitedVisibility = true;
+    }
+  }
+
+  const withoutContactCount = dealsWithoutContact.length;
+  const withoutContactPercentage = Number(
+    ((withoutContactCount / totalDeals) * 100).toFixed(1)
+  );
+
+  /* ----------------------------------
+     OWNER CHECK
+  ---------------------------------- */
+
+  const dealsWithoutOwner = deals
+    .filter(d => !d.properties?.hubspot_owner_id)
+    .map(normalizeDeal);
+
+  const withoutOwnerCount = dealsWithoutOwner.length;
+  const withoutOwnerPercentage = Number(
+    ((withoutOwnerCount / totalDeals) * 100).toFixed(1)
+  );
+
+  return {
+    total: totalDeals,
+    withoutContact: {
+      count: withoutContactCount,
+      percentage: withoutContactPercentage,
+      score: calculateScore(withoutContactPercentage),
+      items: dealsWithoutContact
+    },
+    withoutOwner: {
+      count: withoutOwnerCount,
+      percentage: withoutOwnerPercentage,
+      score: calculateScore(withoutOwnerPercentage),
+      items: dealsWithoutOwner
+    },
+    limitedVisibility
+  };
 }
