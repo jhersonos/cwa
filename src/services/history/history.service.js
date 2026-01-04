@@ -1,5 +1,9 @@
 // src/services/history/history.service.js
 
+/**
+ * Guarda o actualiza el snapshot diario del scan
+ * - Máx 1 registro por portal por día
+ */
 export async function saveScanSnapshot(server, data) {
   const {
     portalId,
@@ -108,5 +112,39 @@ export async function saveScanSnapshot(server, data) {
       { err, portalId },
       "Failed saving scan history snapshot"
     );
+  }
+}
+
+/**
+ * Obtiene historial de scans para el portal
+ * - Ordenado por fecha descendente
+ * - Usado por el frontend
+ */
+export async function getScanHistory(server, portalId, limit = 10) {
+  const db = server.db;
+
+  try {
+    const [rows] = await db.query(
+      `
+      SELECT
+        efficiency_score,
+        critical_insights,
+        warning_insights,
+        created_at
+      FROM scan_history
+      WHERE portal_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+      `,
+      [portalId, limit]
+    );
+
+    return rows;
+  } catch (err) {
+    server.log.error(
+      { err, portalId },
+      "Failed fetching scan history"
+    );
+    return [];
   }
 }
