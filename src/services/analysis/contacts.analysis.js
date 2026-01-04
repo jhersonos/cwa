@@ -1,55 +1,62 @@
-// src/services/analysis/contacts.analysis.js
-
 import { fetchAllContacts } from "../hubspot/contacts.service.js";
 
 /**
  * CONTACT QUALITY ANALYSIS (V3)
- * ⚠️ SAFE VERSION (NO TIMEOUTS, NO FATAL ERRORS)
+ * ✅ V1 SAFE
+ * - No penaliza cuentas vacías
+ * - Solo marca visibilidad limitada ante errores reales
+ * - Marketplace friendly
  */
 export async function analyzeContacts(fastify, portalId, token) {
   let contacts = [];
   let limitedVisibility = false;
+  let visibilityError = false;
 
   try {
-    // ⛔ IMPORTANTE:
-    // fetchAllContacts DEBE soportar límite interno
+    // 🔒 Sample controlado para evitar timeouts
     contacts = await fetchAllContacts(fastify, portalId, token, {
-      limit: 500 // 🔒 sample máximo
+      limit: 500
     });
 
     if (!Array.isArray(contacts)) {
       contacts = [];
       limitedVisibility = true;
+      visibilityError = true;
     }
   } catch (err) {
     const status = err?.response?.status;
 
-    // 🚫 RATE LIMIT / PERMISOS → degradar
-    if (status === 429 || status === 403 || status === 401) {
+    // 🚫 Permisos / rate limit → visibilidad limitada REAL
+    if (status === 401 || status === 403 || status === 429) {
       limitedVisibility = true;
+      visibilityError = true;
       contacts = [];
     } else {
-      // 🔥 error inesperado → log pero NO romper
+      // 🔥 Error inesperado → log, pero no romper el scan
       fastify.log.error(
         { err, portalId },
         "Contact analysis failed unexpectedly"
       );
       limitedVisibility = true;
+      visibilityError = true;
       contacts = [];
     }
   }
 
   const total = contacts.length;
 
-  // 🟡 SIN DATOS → score conservador
+  /* --------------------------------------------------
+     🟢 CUENTA VACÍA ≠ ERROR
+  -------------------------------------------------- */
   if (total === 0) {
     return {
       total: 0,
       withoutEmail: 0,
       withoutLifecycle: 0,
       stale: 0,
-      score: 70,
-      limitedVisibility: true
+      score: 70,                 // baseline conservador
+      limitedVisibility: false,  // ✅ NO es error
+      visibilityError: false
     };
   }
 
@@ -71,17 +78,17 @@ export async function analyzeContacts(fastify, portalId, token) {
     }
   }
 
-  /* ------------------------
-     SCORE (NORMALIZED)
-  ------------------------ */
+  /* --------------------------------------------------
+     🎯 SCORE (NORMALIZADO)
+  -------------------------------------------------- */
   let score = 100;
 
   if (withoutEmail / total > 0.2) score -= 15;
   if (withoutLifecycle / total > 0.3) score -= 20;
   if (stale / total > 0.25) score -= 15;
 
-  // ⛔ Ajuste por sample / visibilidad limitada
-  if (limitedVisibility) score -= 10;
+  // ⛔ Penalización SOLO si hubo error real
+  if (visibilityError) score -= 10;
 
   score = Math.max(40, Math.round(score));
 
@@ -91,6 +98,7 @@ export async function analyzeContacts(fastify, portalId, token) {
     withoutLifecycle,
     stale,
     score,
-    limitedVisibility
+    limitedVisibility: visibilityError,
+    visibilityError
   };
 }

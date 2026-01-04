@@ -1,16 +1,17 @@
-// src/services/analysis/users.analysis.js
-
 import axios from "axios";
 
 const HUBSPOT_API = "https://api.hubapi.com";
 
 /**
- * USERS ANALYSIS (V3 SAFE)
+ * USERS ANALYSIS (V3)
+ * ✅ V1 SAFE
+ * - No penaliza cuentas sin usuarios
+ * - Distingue error real vs no data
  * - Nunca rompe el scan
- * - Maneja permisos
- * - Rápido
  */
 export async function analyzeUsers(fastify, portalId, token) {
+  let visibilityError = false;
+
   try {
     const res = await axios.get(
       `${HUBSPOT_API}/settings/v3/users`,
@@ -25,12 +26,16 @@ export async function analyzeUsers(fastify, portalId, token) {
     const users = res.data?.results || [];
     const total = users.length;
 
+    /* --------------------------------------------------
+       🟢 CUENTA SIN USUARIOS ≠ ERROR
+    -------------------------------------------------- */
     if (total === 0) {
       return {
         total: 0,
         inactive: 0,
-        score: 50,
-        limitedVisibility: false
+        score: 50,                 // baseline conservador
+        limitedVisibility: false,
+        visibilityError: false
       };
     }
 
@@ -42,8 +47,11 @@ export async function analyzeUsers(fastify, portalId, token) {
       }
     }
 
-    // 🎯 SCORE
+    /* --------------------------------------------------
+       🎯 SCORE
+    -------------------------------------------------- */
     let score = 100;
+
     if (inactive / total > 0.2) score -= 20;
     if (inactive / total > 0.4) score -= 30;
 
@@ -53,12 +61,13 @@ export async function analyzeUsers(fastify, portalId, token) {
       total,
       inactive,
       score,
-      limitedVisibility: false
+      limitedVisibility: false,
+      visibilityError: false
     };
   } catch (err) {
     const status = err?.response?.status;
 
-    // 🚫 PERMISOS / PLAN
+    // 🚫 Permisos / plan → visibilidad limitada REAL
     if (status === 401 || status === 403) {
       fastify.log.warn(
         { portalId, status },
@@ -69,11 +78,12 @@ export async function analyzeUsers(fastify, portalId, token) {
         total: 0,
         inactive: 0,
         score: 50,
-        limitedVisibility: true
+        limitedVisibility: true,
+        visibilityError: true
       };
     }
 
-    // 🔥 Error inesperado
+    // 🔥 Error inesperado → log, pero no romper
     fastify.log.error(
       { err, portalId },
       "Unexpected error analyzing users"
@@ -83,7 +93,8 @@ export async function analyzeUsers(fastify, portalId, token) {
       total: 0,
       inactive: 0,
       score: 50,
-      limitedVisibility: true
+      limitedVisibility: true,
+      visibilityError: true
     };
   }
 }

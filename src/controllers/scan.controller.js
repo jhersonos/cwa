@@ -2,7 +2,7 @@
 
 import { analyzeContacts } from "../services/analysis/contacts.analysis.js";
 import { analyzeUsers } from "../services/analysis/users.analysis.js";
-import { analyzeWorkflows } from "../services/analysis/workflows.analysis.js";
+
 
 import { getValidAccessToken } from "../services/hubspot/token.service.js";
 
@@ -43,26 +43,7 @@ export async function runScanV3(req, reply) {
       analyzeUsers(req.server, portalId, token)
     ]);
 
-    /* ------------------------
-       FASE 8 — WORKFLOWS (NO BLOQUEANTE)
-    ------------------------ */
-    let workflows = {
-      total: 0,
-      inactive: 0,
-      highComplexity: 0,
-      legacy: 0,
-      limitedVisibility: true
-    };
-
-    try {
-      workflows = await analyzeWorkflows(req.server, portalId, token);
-    } catch (err) {
-      req.server.log.warn(
-        { portalId },
-        "Workflows analysis skipped (permissions or plan)"
-      );
-    }
-
+    
     /* ------------------------
        FASE 5 — EFFICIENCY
     ------------------------ */
@@ -74,8 +55,7 @@ export async function runScanV3(req, reply) {
     const efficiency = {
       score: efficiencyResult.score,
       level: getEfficiencyLevel(efficiencyResult.score),
-      hasLimitedVisibility:
-        efficiencyResult.hasLimitedVisibility || workflows.limitedVisibility
+      hasLimitedVisibility: efficiencyResult.hasLimitedVisibility
     };
 
     /* ------------------------
@@ -84,8 +64,7 @@ export async function runScanV3(req, reply) {
     const insights = generateInsights({
       efficiency,
       contacts,
-      users,
-      workflows
+      users
     });
 
     /* ------------------------
@@ -104,7 +83,6 @@ export async function runScanV3(req, reply) {
         hasLimitedVisibility: efficiency.hasLimitedVisibility,
         contactsTotal: contacts.total,
         usersTotal: users.total,
-        workflowsTotal: workflows.total,
         criticalInsights: prioritization.summary.critical,
         warningInsights: prioritization.summary.warning
       });
@@ -150,7 +128,6 @@ export async function runScanV3(req, reply) {
       insights,
       contacts,
       users,
-      workflows,
       meta: {
         durationMs: duration
       }
