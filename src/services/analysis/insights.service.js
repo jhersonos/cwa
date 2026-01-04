@@ -20,11 +20,11 @@ export function generateInsights({
     insights.push({
       id: "limited-visibility",
       severity: "warning",
-      title: "Limited data visibility detected",
+      title: "Visibilidad limitada de datos detectada",
       description:
-        "Some HubSpot data could not be analyzed due to missing permissions or API restrictions.",
+        "Algunos datos de HubSpot no pudieron ser analizados debido a permisos faltantes o restricciones de la API.",
       recommendation:
-        "Review app permissions and ensure required access is granted.",
+        "Revisa los permisos de la aplicación y asegúrate de que se haya otorgado el acceso requerido.",
       relatedModule: "global"
     });
   }
@@ -36,11 +36,11 @@ export function generateInsights({
     insights.push({
       id: "contacts-without-email",
       severity: "warning",
-      title: "Contacts without email addresses",
+      title: "Contactos sin correo electrónico",
       description:
-        `${contacts.withoutEmail} contacts do not have an email address, limiting engagement and automation capabilities.`,
+        `${contacts.withoutEmail} contactos no tienen un correo electrónico, limitando la capacidad de interacción y automatización.`,
       recommendation:
-        "Enrich your contact data or enforce email capture on all lead sources.",
+        "Enriquece los datos de tus contactos o obliga a capturar el correo electrónico en todas las fuentes de leads.",
       relatedModule: "contacts"
     });
   }
@@ -51,9 +51,9 @@ export function generateInsights({
       severity: "warning",
       title: "Contacts missing lifecycle stage",
       description:
-        `${contacts.withoutLifecycle} contacts are missing a lifecycle stage, which impacts reporting and funnel visibility.`,
+        `${contacts.withoutLifecycle} contactos no tienen una etapa de ciclo de vida, lo que impacta en el reporte y visibilidad de la canalización.`,
       recommendation:
-        "Assign lifecycle stages automatically using form defaults or CRM rules.",
+        "Asigna etapas de ciclo de vida automáticamente usando los valores por defecto de los formularios o las reglas de la CRM.",
       relatedModule: "contacts"
     });
   }
@@ -62,11 +62,11 @@ export function generateInsights({
     insights.push({
       id: "stale-contacts",
       severity: "critical",
-      title: "Stale contacts detected",
+      title: "Contactos obsoletos detectados",
       description:
-        `${contacts.stale} contacts have not been updated in a long time, increasing CRM clutter and cost.`,
+        `${contacts.stale} contactos no han sido actualizados en mucho tiempo, aumentando el clutter de la CRM y los costos.`,
       recommendation:
-        "Run a cleanup process or archive stale contacts periodically.",
+        "Ejecuta un proceso de limpieza o archiva los contactos obsoletos periódicamente.",
       relatedModule: "contacts"
     });
   }
@@ -78,11 +78,11 @@ export function generateInsights({
     insights.push({
       id: "inactive-users",
       severity: "critical",
-      title: "Inactive HubSpot users detected",
+      title: "Usuarios inactivos de HubSpot detectados",
       description:
-        `${users.inactive} users appear inactive but still occupy paid seats.`,
+        `${users.inactive} usuarios aparecen inactivos pero todavía ocupan asientos pagos.`,
       recommendation:
-        "Remove or downgrade inactive users to reduce subscription costs.",
+        "Elimina o reduce el nivel de los usuarios inactivos para reducir los costos de suscripción.",
       relatedModule: "users"
     });
   }
@@ -94,11 +94,11 @@ export function generateInsights({
     insights.push({
       id: "healthy-account",
       severity: "info",
-      title: "Healthy HubSpot account",
+      title: "Cuenta de HubSpot saludable",
       description:
-        "No significant inefficiencies were detected. Your account is well-structured and optimized.",
+        "No se detectaron ineficiencias significativas. Tu cuenta está bien estructurada y optimizada.",
       recommendation:
-        "Maintain current governance and review periodically as your database grows.",
+        "Mantén la actual gobernanza y revisa periódicamente a medida que crece tu base de datos.",
       relatedModule: "global"
     });
   }
