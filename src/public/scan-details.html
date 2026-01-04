@@ -92,7 +92,8 @@
 
 <body>
 
-  <!-- HEADER -->
+  <div class="container-app">
+    <!-- HEADER -->
   <div class="top-actions">
     <div>
       <h1 id="title">Detalle</h1>
@@ -126,6 +127,7 @@
     No se encontraron registros.
   </div>
 
+  </div>
 <script>
   const params = new URLSearchParams(window.location.search);
   const type = params.get("type");
@@ -297,6 +299,11 @@
     Solicitar revisión gratuita
   </button>
 </div>
-
+<style>
+  .container-app {
+    max-width: 1050px;
+    margin: 0 auto;
+  }
+</style>
 </body>
 </html>
