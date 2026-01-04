@@ -29,13 +29,13 @@ export async function runScanV3(req, reply) {
   const token = await getValidAccessToken(req.server, portalId);
 
   /* ------------------------
-     FASE 4 — SCANS BASE
+     FAST SCAN (UI SAFE)
   ------------------------ */
   const contacts = await analyzeContacts(req.server, portalId, token);
   const users = await analyzeUsers(req.server, portalId, token);
 
   /* ------------------------
-     FASE 8 — WORKFLOWS
+     WORKFLOWS (BEST EFFORT)
   ------------------------ */
   let workflows = {
     total: 0,
@@ -44,16 +44,15 @@ export async function runScanV3(req, reply) {
     legacy: 0,
     limitedVisibility: true
   };
-  
+
   try {
     workflows = await analyzeWorkflows(req.server, portalId, token);
-  } catch (err) {
-    // 🔒 NO HACER NADA
-    // workflows queda como limitedVisibility: true
+  } catch (_) {
+    // ignore (Free / Starter accounts)
   }
 
   /* ------------------------
-     FASE 5 — EFFICIENCY SCORE
+     EFFICIENCY
   ------------------------ */
   const efficiencyResult = calculateEfficiencyScore({ contacts, users });
 
@@ -65,7 +64,7 @@ export async function runScanV3(req, reply) {
   };
 
   /* ------------------------
-     FASE 6 — INSIGHTS
+     INSIGHTS + PRIORITIZATION
   ------------------------ */
   const insights = generateInsights({
     efficiency,
@@ -74,46 +73,51 @@ export async function runScanV3(req, reply) {
     workflows
   });
 
-  /* ------------------------
-     FASE 7 — PRIORITIZATION
-  ------------------------ */
   const prioritization = generatePrioritization(insights);
 
   /* ------------------------
-     FASE 9 — HISTORICAL SNAPSHOT (BD)
+     🚀 RESPUESTA INMEDIATA (UI)
   ------------------------ */
-  await saveScanSnapshot(req.server, {
-    portalId,
-    efficiencyScore: efficiency.score,
-    efficiencyLevel: efficiency.level,
-    hasLimitedVisibility: efficiency.hasLimitedVisibility,
-    contactsTotal: contacts.total,
-    usersTotal: users.total,
-    workflowsTotal: workflows.total,
-    criticalInsights: prioritization.summary.critical,
-    warningInsights: prioritization.summary.warning
-  });
-
-  /* ------------------------
-     FASE 10 — BENCHMARKING
-  ------------------------ */
-  const benchmark = await calculateBenchmark(req.server, {
-    efficiencyScore: efficiency.score,
-    contactsTotal: contacts.total
-  });
-
-  /* ------------------------
-     RESPONSE FINAL
-  ------------------------ */
-  return {
+  reply.send({
     version: "v3",
     portalId,
     efficiency,
-    benchmark,
     prioritization,
     insights,
     contacts,
     users,
     workflows
-  };
+  });
+
+  /* =====================================================
+     ⏳ BACKGROUND TASKS (NO BLOQUEAN UI)
+     ===================================================== */
+
+  setImmediate(async () => {
+    try {
+      // FASE 9 — HISTORY
+      await saveScanSnapshot(req.server, {
+        portalId,
+        efficiencyScore: efficiency.score,
+        efficiencyLevel: efficiency.level,
+        hasLimitedVisibility: efficiency.hasLimitedVisibility,
+        contactsTotal: contacts.total,
+        usersTotal: users.total,
+        workflowsTotal: workflows.total,
+        criticalInsights: prioritization.summary?.critical ?? 0,
+        warningInsights: prioritization.summary?.warning ?? 0
+      });
+
+      // FASE 10 — BENCHMARK
+      await calculateBenchmark(req.server, {
+        efficiencyScore: efficiency.score,
+        contactsTotal: contacts.total
+      });
+    } catch (err) {
+      req.server.log.error(
+        { err, portalId },
+        "Post-scan background processing failed"
+      );
+    }
+  });
 }
