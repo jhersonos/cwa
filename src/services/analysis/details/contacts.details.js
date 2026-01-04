@@ -13,15 +13,30 @@ function buildContactItem(portalId, contact) {
   };
 }
 
-export async function getContactsWithoutEmail(server, portalId, token) {
-  const contacts = await fetchAllContacts(server, portalId, token, {
-    limit: MAX_SAMPLE
-  });
-
-  return contacts
-    .filter(c => !c.properties?.email)
-    .map(c => buildContactItem(portalId, c));
-}
+export async function getContactsWithoutEmail({ portalId, token }) {
+    let contacts = [];
+  
+    try {
+      contacts = await fetchAllContacts(null, portalId, token, {
+        limit: MAX_SAMPLE
+      });
+  
+      if (!Array.isArray(contacts)) {
+        contacts = [];
+      }
+    } catch (err) {
+      // degradar silenciosamente (detalle nunca rompe la app)
+      contacts = [];
+    }
+  
+    const filtered = contacts.filter(c => !c.properties?.email);
+  
+    return {
+      type: "contacts-without-email",
+      total: filtered.length,
+      items: filtered.map(c => buildContactItem(portalId, c))
+    };
+  }
 
 export async function getContactsWithoutLifecycle(server, portalId, token) {
   const contacts = await fetchAllContacts(server, portalId, token, {
