@@ -126,182 +126,182 @@
   <div id="empty" class="empty" style="display:none">
     No se encontraron registros.
   </div>
-
-  </div>
-<script>
-  const params = new URLSearchParams(window.location.search);
-  const type = params.get("type");
-  const portalId = params.get("portalId");
-
-  const titleMap = {
-    "contacts-without-email": "Contactos sin correo electrónico",
-    "contacts-without-lifecycle": "Contactos sin etapa de ciclo de vida",
-    "stale-contacts": "Contactos obsoletos",
-    "inactive-users": "Usuarios inactivos"
-  };
-
-  const descMap = {
-    "contacts-without-email": "Estos contactos no tienen correo electrónico asociado.",
-    "contacts-without-lifecycle": "Estos contactos no tienen definida una etapa del ciclo de vida.",
-    "stale-contacts": "Contactos que no han sido modificados en más de 12 meses.",
-    "inactive-users": "Usuarios inactivos que aún pueden ocupar licencias."
-  };
-
-  document.getElementById("title").innerText =
-    titleMap[type] || "Detalle del análisis";
-
-  document.getElementById("description").innerText =
-    descMap[type] || "";
-
-  let currentItems = [];
-
-  /* -------------------------
-     RENDER TABLE
-  ------------------------- */
-  function renderTable(items) {
-    const tbody = document.getElementById("tbody");
-    tbody.innerHTML = "";
-
-    if (!items.length) {
-      document.getElementById("table").style.display = "none";
-      document.getElementById("empty").style.display = "block";
-      return;
-    }
-
-    document.getElementById("empty").style.display = "none";
-    document.getElementById("table").style.display = "table";
-
-    items.forEach(item => {
-      const tr = document.createElement("tr");
-
-      tr.innerHTML = `
-        <td>${item.name || "—"}</td>
-        <td>${item.email || "—"}</td>
-      `;
-
-      tr.onclick = () => {
-        window.open(item.hubspotUrl, "_blank");
-      };
-
-      tbody.appendChild(tr);
-    });
-  }
-
-  /* -------------------------
-     FETCH DATA
-  ------------------------- */
-  fetch(`/api/scan-v3/details/${type}?portalId=${portalId}`)
-    .then(res => res.json())
-    .then(data => {
-      if (!data.items || !data.items.length) {
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const type = params.get("type");
+    const portalId = params.get("portalId");
+  
+    const titleMap = {
+      "contacts-without-email": "Contactos sin correo electrónico",
+      "contacts-without-lifecycle": "Contactos sin etapa de ciclo de vida",
+      "stale-contacts": "Contactos obsoletos",
+      "inactive-users": "Usuarios inactivos"
+    };
+  
+    const descMap = {
+      "contacts-without-email": "Estos contactos no tienen correo electrónico asociado.",
+      "contacts-without-lifecycle": "Estos contactos no tienen definida una etapa del ciclo de vida.",
+      "stale-contacts": "Contactos que no han sido modificados en más de 12 meses.",
+      "inactive-users": "Usuarios inactivos que aún pueden ocupar licencias."
+    };
+  
+    document.getElementById("title").innerText =
+      titleMap[type] || "Detalle del análisis";
+  
+    document.getElementById("description").innerText =
+      descMap[type] || "";
+  
+    let currentItems = [];
+  
+    /* -------------------------
+       RENDER TABLE
+    ------------------------- */
+    function renderTable(items) {
+      const tbody = document.getElementById("tbody");
+      tbody.innerHTML = "";
+  
+      if (!items.length) {
+        document.getElementById("table").style.display = "none";
         document.getElementById("empty").style.display = "block";
         return;
       }
-
-      currentItems = data.items;
-      if (data.items.length > 0) {
-        document.getElementById("ctaBox").style.display = "block";
-        }
-      renderTable(currentItems);
-    })
-    .catch(() => {
-      document.getElementById("empty").innerText =
-        "Error al cargar el detalle.";
-      document.getElementById("empty").style.display = "block";
-    });
-
-  /* -------------------------
-     SEARCH FILTER
-  ------------------------- */
-  document.getElementById("searchInput").addEventListener("input", e => {
-    const value = e.target.value.toLowerCase().trim();
-
-    if (!value) {
-      renderTable(currentItems);
-      return;
+  
+      document.getElementById("empty").style.display = "none";
+      document.getElementById("table").style.display = "table";
+  
+      items.forEach(item => {
+        const tr = document.createElement("tr");
+  
+        tr.innerHTML = `
+          <td>${item.name || "—"}</td>
+          <td>${item.email || "—"}</td>
+        `;
+  
+        tr.onclick = () => {
+          window.open(item.hubspotUrl, "_blank");
+        };
+  
+        tbody.appendChild(tr);
+      });
     }
+  
+    /* -------------------------
+       FETCH DATA
+    ------------------------- */
+    fetch(`/api/scan-v3/details/${type}?portalId=${portalId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (!data.items || !data.items.length) {
+          document.getElementById("empty").style.display = "block";
+          return;
+        }
+  
+        currentItems = data.items;
+        if (data.items.length > 0) {
+          document.getElementById("ctaBox").style.display = "block";
+          }
+        renderTable(currentItems);
+      })
+      .catch(() => {
+        document.getElementById("empty").innerText =
+          "Error al cargar el detalle.";
+        document.getElementById("empty").style.display = "block";
+      });
+  
+    /* -------------------------
+       SEARCH FILTER
+    ------------------------- */
+    document.getElementById("searchInput").addEventListener("input", e => {
+      const value = e.target.value.toLowerCase().trim();
+  
+      if (!value) {
+        renderTable(currentItems);
+        return;
+      }
+  
+      const filtered = currentItems.filter(item =>
+        (item.name || "").toLowerCase().includes(value) ||
+        (item.email || "").toLowerCase().includes(value)
+      );
+  
+      renderTable(filtered);
+    });
+  
+    /* -------------------------
+       EXPORT CSV
+    ------------------------- */
+    document.getElementById("exportCsvBtn").onclick = () => {
+      if (!currentItems.length) return;
+  
+      const headers = ["Nombre", "Email", "URL HubSpot"];
+      const rows = currentItems.map(i => [
+        `"${i.name || ""}"`,
+        `"${i.email || ""}"`,
+        `"${i.hubspotUrl}"`
+      ]);
+  
+      const csv =
+        headers.join(",") + "\n" +
+        rows.map(r => r.join(",")).join("\n");
+  
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+  
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${type}-${portalId}.csv`;
+      a.click();
+  
+      URL.revokeObjectURL(url);
+    };
+  
+    /* -------------------------
+       EXPORT XLSX
+    ------------------------- */
+    document.getElementById("exportXlsxBtn").onclick = () => {
+      if (!type || !portalId) return;
+  
+      window.location.href =
+        `/api/scan-v3/details/${type}/export/xlsx?portalId=${portalId}`;
+    };
+  
+    function openCta() {
+    const url = new URL("https://estado7.com/contact");
+    url.searchParams.set("source", "cost-waste-analyzer");
+    url.searchParams.set("issue", type);
+    url.searchParams.set("count", currentItems.length);
+    window.open(url.toString(), "_blank");
+  }
+  </script>
+  <div id="ctaBox" style="
+    display:none;
+    margin-top:32px;
+    padding:20px;
+    border:1px solid #d1d5db;
+    border-radius:10px;
+    background:#f9fafb;
+  ">
+    <strong style="font-size:14px;">
+      ¿Quieres resolver esto más rápido?
+    </strong>
+  
+    <p style="font-size:13px; color:#6b7280; margin:8px 0;">
+      Te ayudamos a mejorar la calidad de datos, optimizar procesos y obtener mayor control sobre su uso de HubSpot.
+    </p>
+  
+    <button
+      class="btn"
+      onclick="openCta()"
+      style="margin-top:8px;"
+    >
+      Solicitar revisión gratuita
+    </button>
+  </div>
+  </div>
 
-    const filtered = currentItems.filter(item =>
-      (item.name || "").toLowerCase().includes(value) ||
-      (item.email || "").toLowerCase().includes(value)
-    );
-
-    renderTable(filtered);
-  });
-
-  /* -------------------------
-     EXPORT CSV
-  ------------------------- */
-  document.getElementById("exportCsvBtn").onclick = () => {
-    if (!currentItems.length) return;
-
-    const headers = ["Nombre", "Email", "URL HubSpot"];
-    const rows = currentItems.map(i => [
-      `"${i.name || ""}"`,
-      `"${i.email || ""}"`,
-      `"${i.hubspotUrl}"`
-    ]);
-
-    const csv =
-      headers.join(",") + "\n" +
-      rows.map(r => r.join(",")).join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${type}-${portalId}.csv`;
-    a.click();
-
-    URL.revokeObjectURL(url);
-  };
-
-  /* -------------------------
-     EXPORT XLSX
-  ------------------------- */
-  document.getElementById("exportXlsxBtn").onclick = () => {
-    if (!type || !portalId) return;
-
-    window.location.href =
-      `/api/scan-v3/details/${type}/export/xlsx?portalId=${portalId}`;
-  };
-
-  function openCta() {
-  const url = new URL("https://estado7.com/contact");
-  url.searchParams.set("source", "cost-waste-analyzer");
-  url.searchParams.set("issue", type);
-  url.searchParams.set("count", currentItems.length);
-  window.open(url.toString(), "_blank");
-}
-</script>
-<div id="ctaBox" style="
-  display:none;
-  margin-top:32px;
-  padding:20px;
-  border:1px solid #d1d5db;
-  border-radius:10px;
-  background:#f9fafb;
-">
-  <strong style="font-size:14px;">
-    ¿Quieres resolver esto más rápido?
-  </strong>
-
-  <p style="font-size:13px; color:#6b7280; margin:8px 0;">
-    Te ayudamos a mejorar la calidad de datos, optimizar procesos y obtener mayor control sobre su uso de HubSpot.
-  </p>
-
-  <button
-    class="btn"
-    onclick="openCta()"
-    style="margin-top:8px;"
-  >
-    Solicitar revisión gratuita
-  </button>
-</div>
 <style>
   .container-app {
-    max-width: 850px;
+    max-width: 800px;
   }
 </style>
 </body>
