@@ -2,6 +2,7 @@
 
 import { analyzeContacts } from "../services/analysis/contacts.analysis.js";
 import { analyzeUsers } from "../services/analysis/users.analysis.js";
+import { analyzeDeals } from "../services/analysis/deals.analysis.js";
 
 
 import { getValidAccessToken } from "../services/hubspot/token.service.js";
@@ -38,9 +39,10 @@ export async function runScanV3(req, reply) {
     /* ------------------------
        FASE 4 — BASE SCANS (AISLADOS)
     ------------------------ */
-    const [contacts, users] = await Promise.all([
+    const [contacts, users, deals] = await Promise.all([
       analyzeContacts(req.server, portalId, token),
-      analyzeUsers(req.server, portalId, token)
+      analyzeUsers(req.server, portalId, token),
+      analyzeDeals({ portalId, accessToken: token })
     ]);
 
     
@@ -128,6 +130,7 @@ export async function runScanV3(req, reply) {
       insights,
       contacts,
       users,
+      deals,
       meta: {
         durationMs: duration
       }

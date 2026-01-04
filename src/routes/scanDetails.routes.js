@@ -1,3 +1,4 @@
+// src/routes/scanDetails.routes.js
 import { getScanDetails } from "../controllers/scanDetails.controller.js";
 
 export default async function scanDetailsRoutes(server) {

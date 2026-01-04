@@ -1,3 +1,4 @@
+// src/routes/scan.js
 import { hubspotRequest } from "../services/hubspot.js";
 
 const scanCache = new Map();

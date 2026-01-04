@@ -1,3 +1,4 @@
+// src/controllers/scanDetails.controller.js
 import {
     getContactsWithoutEmail,
     getContactsWithoutLifecycle,

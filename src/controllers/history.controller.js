@@ -1,3 +1,4 @@
+// src/controllers/history.controller.js
 import { getScanHistory } from "../services/history/history.service.js";
 
 /**
