@@ -13,7 +13,7 @@ export default async function buildApp() {
   await app.register(scanRoutes);
   await app.register(scanV2Routes);
   await app.register(scanV3Routes); 
-
+  
   app.get("/", async () => {
     return {
       status: "ok",
