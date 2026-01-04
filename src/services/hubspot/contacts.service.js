@@ -38,7 +38,9 @@ export async function fetchAllContacts(
             properties: [
               "email",
               "lifecyclestage",
-              "hs_lastmodifieddate"
+              "hs_lastmodifieddate",
+              "firstname",
+              "lastname"
             ].join(",")
           },
           timeout: 8000
