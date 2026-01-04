@@ -3,6 +3,7 @@
 import { analyzeContacts } from "../services/analysis/contacts.analysis.js";
 import { analyzeUsers } from "../services/analysis/users.analysis.js";
 import { analyzeWorkflows } from "../services/analysis/workflows.analysis.js";
+
 import { getValidAccessToken } from "../services/hubspot/token.service.js";
 
 import {
@@ -16,6 +17,9 @@ import { generatePrioritization } from "../services/analysis/prioritization.serv
 import { saveScanSnapshot } from "../services/history/history.service.js";
 import { calculateBenchmark } from "../services/analysis/benchmark.service.js";
 
+/**
+ * 🔒 SCAN V3 — MARKETPLACE SAFE
+ */
 export async function runScanV3(req, reply) {
   const { portalId } = req.query;
 
@@ -23,20 +27,24 @@ export async function runScanV3(req, reply) {
     return reply.code(400).send({ error: "Missing portalId" });
   }
 
+  const start = Date.now();
+
   try {
     /* ------------------------
-       AUTH / TOKEN
+       AUTH
     ------------------------ */
     const token = await getValidAccessToken(req.server, portalId);
 
     /* ------------------------
-       FAST SCAN (UI SAFE)
+       FASE 4 — BASE SCANS (AISLADOS)
     ------------------------ */
-    const contacts = await analyzeContacts(req.server, portalId, token);
-    const users = await analyzeUsers(req.server, portalId, token);
+    const [contacts, users] = await Promise.all([
+      analyzeContacts(req.server, portalId, token),
+      analyzeUsers(req.server, portalId, token)
+    ]);
 
     /* ------------------------
-       WORKFLOWS (BEST EFFORT)
+       FASE 8 — WORKFLOWS (NO BLOQUEANTE)
     ------------------------ */
     let workflows = {
       total: 0,
@@ -48,14 +56,20 @@ export async function runScanV3(req, reply) {
 
     try {
       workflows = await analyzeWorkflows(req.server, portalId, token);
-    } catch (_) {
-      // ignore (Free / Starter accounts)
+    } catch (err) {
+      req.server.log.warn(
+        { portalId },
+        "Workflows analysis skipped (permissions or plan)"
+      );
     }
 
     /* ------------------------
-       EFFICIENCY
+       FASE 5 — EFFICIENCY
     ------------------------ */
-    const efficiencyResult = calculateEfficiencyScore({ contacts, users });
+    const efficiencyResult = calculateEfficiencyScore({
+      contacts,
+      users
+    });
 
     const efficiency = {
       score: efficiencyResult.score,
@@ -65,7 +79,7 @@ export async function runScanV3(req, reply) {
     };
 
     /* ------------------------
-       INSIGHTS + PRIORITIZATION
+       FASE 6 — INSIGHTS
     ------------------------ */
     const insights = generateInsights({
       efficiency,
@@ -74,64 +88,82 @@ export async function runScanV3(req, reply) {
       workflows
     });
 
+    /* ------------------------
+       FASE 7 — PRIORITIZATION
+    ------------------------ */
     const prioritization = generatePrioritization(insights);
 
     /* ------------------------
-       🚀 RESPUESTA INMEDIATA (UI)
+       FASE 9 — HISTORY (NO BLOQUEANTE)
     ------------------------ */
-    reply.send({
+    try {
+      await saveScanSnapshot(req.server, {
+        portalId,
+        efficiencyScore: efficiency.score,
+        efficiencyLevel: efficiency.level,
+        hasLimitedVisibility: efficiency.hasLimitedVisibility,
+        contactsTotal: contacts.total,
+        usersTotal: users.total,
+        workflowsTotal: workflows.total,
+        criticalInsights: prioritization.summary.critical,
+        warningInsights: prioritization.summary.warning
+      });
+    } catch (err) {
+      req.server.log.warn(
+        { portalId },
+        "Failed saving scan history"
+      );
+    }
+
+    /* ------------------------
+       FASE 10 — BENCHMARK (NO BLOQUEANTE)
+    ------------------------ */
+    let benchmark = null;
+    try {
+      benchmark = await calculateBenchmark(req.server, {
+        efficiencyScore: efficiency.score,
+        contactsTotal: contacts.total
+      });
+    } catch (err) {
+      req.server.log.warn(
+        { portalId },
+        "Benchmark calculation skipped"
+      );
+    }
+
+    const duration = Date.now() - start;
+
+    req.server.log.info(
+      { portalId, duration },
+      "Scan V3 completed"
+    );
+
+    /* ------------------------
+       RESPONSE FINAL
+    ------------------------ */
+    return {
       version: "v3",
       portalId,
       efficiency,
+      benchmark,
       prioritization,
       insights,
       contacts,
       users,
-      workflows
-    });
-
-    /* =====================================================
-       ⏳ BACKGROUND TASKS (NO BLOQUEAN UI)
-       ===================================================== */
-
-    setImmediate(async () => {
-      try {
-        // FASE 9 — HISTORY
-        await saveScanSnapshot(req.server, {
-          portalId,
-          efficiencyScore: efficiency.score,
-          efficiencyLevel: efficiency.level,
-          hasLimitedVisibility: efficiency.hasLimitedVisibility,
-          contactsTotal: contacts.total,
-          usersTotal: users.total,
-          workflowsTotal: workflows.total,
-          criticalInsights: prioritization.summary?.critical ?? 0,
-          warningInsights: prioritization.summary?.warning ?? 0
-        });
-
-        // FASE 10 — BENCHMARK
-        await calculateBenchmark(req.server, {
-          efficiencyScore: efficiency.score,
-          contactsTotal: contacts.total
-        });
-      } catch (err) {
-        req.server.log.error(
-          { err, portalId },
-          "Post-scan background processing failed"
-        );
+      workflows,
+      meta: {
+        durationMs: duration
       }
-    });
-  } catch (error) {
-    // Manejo de errores global - asegurar que siempre se envíe una respuesta
+    };
+  } catch (err) {
     req.server.log.error(
-      { err: error, portalId },
-      "Scan V3 failed"
+      { err, portalId },
+      "Fatal error running scan v3"
     );
-    
+
     return reply.code(500).send({
-      error: "Analysis failed",
-      message: error.message || "Unexpected error during analysis",
-      portalId
+      error: "Scan failed",
+      message: err.message || "Unexpected error"
     });
   }
 }

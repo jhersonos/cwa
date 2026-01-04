@@ -1,12 +1,84 @@
-import { fetchAllUsers } from "../hubspot/users.service.js";
+// src/services/analysis/users.analysis.js
+
+import axios from "axios";
+
+const HUBSPOT_API = "https://api.hubapi.com";
 
 /**
- * Analiza eficiencia de usuarios
+ * USERS ANALYSIS (V3 SAFE)
+ * - Nunca rompe el scan
+ * - Maneja permisos
+ * - Rápido
  */
 export async function analyzeUsers(fastify, portalId, token) {
-  const users = await fetchAllUsers(fastify, portalId, token);
+  try {
+    const res = await axios.get(
+      `${HUBSPOT_API}/settings/v3/users`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        timeout: 8000
+      }
+    );
 
-  if (!users.length) {
+    const users = res.data?.results || [];
+    const total = users.length;
+
+    if (total === 0) {
+      return {
+        total: 0,
+        inactive: 0,
+        score: 50,
+        limitedVisibility: false
+      };
+    }
+
+    let inactive = 0;
+
+    for (const u of users) {
+      if (u.archived || u.status === "inactive") {
+        inactive++;
+      }
+    }
+
+    // 🎯 SCORE
+    let score = 100;
+    if (inactive / total > 0.2) score -= 20;
+    if (inactive / total > 0.4) score -= 30;
+
+    score = Math.max(40, Math.round(score));
+
+    return {
+      total,
+      inactive,
+      score,
+      limitedVisibility: false
+    };
+  } catch (err) {
+    const status = err?.response?.status;
+
+    // 🚫 PERMISOS / PLAN
+    if (status === 401 || status === 403) {
+      fastify.log.warn(
+        { portalId, status },
+        "Users analysis limited by permissions"
+      );
+
+      return {
+        total: 0,
+        inactive: 0,
+        score: 50,
+        limitedVisibility: true
+      };
+    }
+
+    // 🔥 Error inesperado
+    fastify.log.error(
+      { err, portalId },
+      "Unexpected error analyzing users"
+    );
+
     return {
       total: 0,
       inactive: 0,
@@ -14,34 +86,4 @@ export async function analyzeUsers(fastify, portalId, token) {
       limitedVisibility: true
     };
   }
-
-  let inactiveUsers = 0;
-
-  for (const user of users) {
-    if (
-      user.isSuspended ||
-      !user.email ||
-      user.isDeleted
-    ) {
-      inactiveUsers++;
-    }
-  }
-
-  // 🧮 Scoring
-  let score = 100;
-  const inactiveRatio = inactiveUsers / users.length;
-
-  if (inactiveRatio > 0.4) score -= 40;
-  else if (inactiveRatio > 0.25) score -= 25;
-  else if (inactiveRatio > 0.15) score -= 15;
-  else if (inactiveRatio > 0.05) score -= 5;
-
-  score = Math.max(40, Math.min(100, Math.round(score)));
-
-  return {
-    total: users.length,
-    inactive: inactiveUsers,
-    score,
-    limitedVisibility: false
-  };
 }
