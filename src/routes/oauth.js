@@ -79,11 +79,8 @@ export default async function oauthRoutes(fastify) {
         [hub_id, access_token, refresh_token, expiresAt]
       );
 
-      reply.type("text/html").send(`
-        <h2>✅ HubSpot Connected</h2>
-        <p>Portal ID: ${hub_id}</p>
-        <p>You can close this window.</p>
-      `);
+      reply.redirect(`/oauth-success.html?portalId=${hub_id}`);
+
     } catch (err) {
       fastify.log.error(err.response?.data || err.message);
       reply.code(500).send("OAuth failed");

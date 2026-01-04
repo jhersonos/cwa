@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>HubSpot Connected</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      background: #f9fafb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 32px;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+    }
+
+    .icon {
+      font-size: 42px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 22px;
+      margin: 0 0 12px;
+      color: #111827;
+    }
+
+    p {
+      font-size: 14px;
+      color: #4b5563;
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+
+    .button {
+      display: inline-block;
+      background: #ff7a59; /* HubSpot orange */
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .button:hover {
+      background: #e56645;
+    }
+
+    .portal {
+      margin-top: 12px;
+      font-size: 12px;
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <div class="icon">✅</div>
+
+    <h1>HubSpot conectado correctamente</h1>
+
+    <p>
+      CRM Risk Scanner se ha conectado con tu cuenta de HubSpot.<br />
+      Ya puedes volver a HubSpot y ejecutar el análisis.
+    </p>
+
+    <a
+      class="button"
+      href="https://app.hubspot.com"
+      target="_top"
+    >
+      Volver a HubSpot
+    </a>
+  </div>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const portalId = params.get("portalId");
+  
+    if (portalId) {
+      const div = document.createElement("div");
+      div.className = "portal";
+      div.textContent = `Portal ID: ${portalId}`;
+      document.querySelector(".card").appendChild(div);
+    }
+  </script>
+  
+</body>
+</html>
