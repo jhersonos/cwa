@@ -9,6 +9,7 @@ import scanV2Routes from "./routes/scanV2.js";
 import scanV3Routes from "./routes/scanV3.js"; 
 import scanDetailsRoutes from "./routes/scanDetails.routes.js";
 import scanProgressiveRoutes from "./routes/scanProgressive.js";
+import debugRoutes from "./routes/debug.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +30,7 @@ export default async function buildApp() {
   await app.register(scanV3Routes); 
   await app.register(scanDetailsRoutes);
   await app.register(scanProgressiveRoutes);
+  await app.register(debugRoutes);
   
   app.get("/", async () => {
     return {

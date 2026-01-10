@@ -23,23 +23,35 @@ export default async function scanProgressiveRoutes(fastify) {
   ---------------------------------- */
   fastify.get("/api/scan-progressive/contacts", async (req, reply) => {
     const { portalId } = req.query;
+    const start = Date.now();
     
     if (!portalId) {
       return reply.code(400).send({ error: "Missing portalId" });
     }
 
     try {
+      req.server.log.info({ portalId }, "Starting contacts analysis");
+      
+      const authStart = Date.now();
       const token = await getValidAccessToken(req.server, portalId);
+      req.server.log.info({ durationMs: Date.now() - authStart }, "Auth completed");
+      
+      const analysisStart = Date.now();
       const contacts = await analyzeContacts(req.server, portalId, token);
+      req.server.log.info({ durationMs: Date.now() - analysisStart }, "Contacts analysis completed");
+      
+      const totalDuration = Date.now() - start;
+      req.server.log.info({ totalDurationMs: totalDuration }, "Contacts endpoint finished");
       
       return {
         step: "contacts",
         progress: 20,
         data: contacts,
-        trafficLight: getTrafficLightStatus(contacts.score)
+        trafficLight: getTrafficLightStatus(contacts.score),
+        meta: { durationMs: totalDuration }
       };
     } catch (err) {
-      req.server.log.error({ err, portalId }, "Contacts analysis failed");
+      req.server.log.error({ err, portalId, durationMs: Date.now() - start }, "Contacts analysis failed");
       return reply.code(500).send({ 
         error: "Contacts analysis failed", 
         message: err.message 
