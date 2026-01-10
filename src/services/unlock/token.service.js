@@ -52,9 +52,23 @@ export async function validateUnlockToken(fastify, portalId, token) {
 
 /**
  * Verifica si un portal tiene acceso desbloqueado activo
+ * Resiliente: no bloquea si la tabla no existe o hay errores
  */
 export async function checkUnlockStatus(fastify, portalId) {
   try {
+    // Check si la tabla existe primero
+    const [tables] = await fastify.mysql.query(
+      `SHOW TABLES LIKE 'unlock_tokens'`
+    );
+    
+    if (tables.length === 0) {
+      fastify.log.warn({ portalId }, "unlock_tokens table does not exist yet");
+      return {
+        unlocked: false,
+        expiresAt: null
+      };
+    }
+
     const [rows] = await fastify.mysql.query(
       `SELECT 
         id, 
@@ -80,7 +94,8 @@ export async function checkUnlockStatus(fastify, portalId) {
       expiresAt: rows[0].expires_at
     };
   } catch (error) {
-    fastify.log.error({ err: error, portalId }, "Error checking unlock status");
+    // NO bloquear la app si hay error de unlock
+    fastify.log.warn({ err: error, portalId }, "Error checking unlock status (non-blocking)");
     return {
       unlocked: false,
       expiresAt: null
