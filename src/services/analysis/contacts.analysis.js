@@ -53,6 +53,7 @@ export async function analyzeContacts(fastify, portalId, token) {
     return {
       total: 0,
       withoutEmail: 0,
+      withoutPhone: 0,
       withoutLifecycle: 0,
       stale: 0,
       score: 70,                 // baseline conservador
@@ -61,9 +62,10 @@ export async function analyzeContacts(fastify, portalId, token) {
     };
   }
 
-  const twelveMonthsAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
+  const sixMonthsAgo = Date.now() - 180 * 24 * 60 * 60 * 1000;
 
   let withoutEmail = 0;
+  let withoutPhone = 0;
   let withoutLifecycle = 0;
   let stale = 0;
 
@@ -71,11 +73,12 @@ export async function analyzeContacts(fastify, portalId, token) {
     const p = c.properties || {};
 
     if (!p.email) withoutEmail++;
+    if (!p.phone && !p.mobilephone) withoutPhone++;
     if (!p.lifecyclestage) withoutLifecycle++;
 
     if (p.hs_lastmodifieddate) {
       const last = new Date(p.hs_lastmodifieddate).getTime();
-      if (last < twelveMonthsAgo) stale++;
+      if (last < sixMonthsAgo) stale++;
     }
   }
 
@@ -85,6 +88,7 @@ export async function analyzeContacts(fastify, portalId, token) {
   let score = 100;
 
   if (withoutEmail / total > 0.2) score -= 15;
+  if (withoutPhone / total > 0.3) score -= 10;
   if (withoutLifecycle / total > 0.3) score -= 20;
   if (stale / total > 0.25) score -= 15;
 
@@ -96,6 +100,7 @@ export async function analyzeContacts(fastify, portalId, token) {
   return {
     total,
     withoutEmail,
+    withoutPhone,
     withoutLifecycle,
     stale,
     score,

@@ -14,7 +14,24 @@ export async function saveScanSnapshot(server, data) {
     usersTotal,
     workflowsTotal = 0,
     criticalInsights,
-    warningInsights
+    warningInsights,
+    // Nuevas métricas (opcionales)
+    dealsTotal = 0,
+    dealsWithoutContact = 0,
+    dealsWithoutOwner = 0,
+    dealsWithoutPrice = 0,
+    dealsInactive = 0,
+    companiesTotal = 0,
+    companiesWithoutDomain = 0,
+    companiesWithoutOwner = 0,
+    companiesInactive = 0,
+    toolsInUse = 0,
+    toolsTotal = 0,
+    toolsUsagePercentage = 0,
+    contactsScore = 100,
+    dealsScore = 100,
+    companiesScore = 100,
+    usersScore = 100
   } = data;
 
   const db = server.db;
@@ -50,6 +67,22 @@ export async function saveScanSnapshot(server, data) {
           workflows_total = ?,
           critical_insights = ?,
           warning_insights = ?,
+          deals_total = ?,
+          deals_without_contact = ?,
+          deals_without_owner = ?,
+          deals_without_price = ?,
+          deals_inactive = ?,
+          companies_total = ?,
+          companies_without_domain = ?,
+          companies_without_owner = ?,
+          companies_inactive = ?,
+          tools_in_use = ?,
+          tools_total = ?,
+          tools_usage_percentage = ?,
+          contacts_score = ?,
+          deals_score = ?,
+          companies_score = ?,
+          users_score = ?,
           created_at = CURRENT_TIMESTAMP
         WHERE id = ?
         `,
@@ -62,6 +95,22 @@ export async function saveScanSnapshot(server, data) {
           workflowsTotal,
           criticalInsights,
           warningInsights,
+          dealsTotal,
+          dealsWithoutContact,
+          dealsWithoutOwner,
+          dealsWithoutPrice,
+          dealsInactive,
+          companiesTotal,
+          companiesWithoutDomain,
+          companiesWithoutOwner,
+          companiesInactive,
+          toolsInUse,
+          toolsTotal,
+          toolsUsagePercentage,
+          contactsScore,
+          dealsScore,
+          companiesScore,
+          usersScore,
           rows[0].id
         ]
       );
@@ -87,8 +136,24 @@ export async function saveScanSnapshot(server, data) {
         users_total,
         workflows_total,
         critical_insights,
-        warning_insights
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        warning_insights,
+        deals_total,
+        deals_without_contact,
+        deals_without_owner,
+        deals_without_price,
+        deals_inactive,
+        companies_total,
+        companies_without_domain,
+        companies_without_owner,
+        companies_inactive,
+        tools_in_use,
+        tools_total,
+        tools_usage_percentage,
+        contacts_score,
+        deals_score,
+        companies_score,
+        users_score
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         portalId,
@@ -99,7 +164,23 @@ export async function saveScanSnapshot(server, data) {
         usersTotal,
         workflowsTotal,
         criticalInsights,
-        warningInsights
+        warningInsights,
+        dealsTotal,
+        dealsWithoutContact,
+        dealsWithoutOwner,
+        dealsWithoutPrice,
+        dealsInactive,
+        companiesTotal,
+        companiesWithoutDomain,
+        companiesWithoutOwner,
+        companiesInactive,
+        toolsInUse,
+        toolsTotal,
+        toolsUsagePercentage,
+        contactsScore,
+        dealsScore,
+        companiesScore,
+        usersScore
       ]
     );
 

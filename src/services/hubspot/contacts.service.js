@@ -37,6 +37,8 @@ export async function fetchAllContacts(
             after,
             properties: [
               "email",
+              "phone",
+              "mobilephone",
               "lifecyclestage",
               "hs_lastmodifieddate",
               "firstname",

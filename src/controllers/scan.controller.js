@@ -3,7 +3,8 @@
 import { analyzeContacts } from "../services/analysis/contacts.analysis.js";
 import { analyzeUsers } from "../services/analysis/users.analysis.js";
 import { analyzeDeals } from "../services/analysis/deals.analysis.js";
-
+import { analyzeCompanies } from "../services/analysis/companies.analysis.js";
+import { analyzeToolsUsage } from "../services/analysis/tools.analysis.js";
 
 import { getValidAccessToken } from "../services/hubspot/token.service.js";
 
@@ -14,6 +15,7 @@ import {
 
 import { generateInsights } from "../services/analysis/insights.service.js";
 import { generatePrioritization } from "../services/analysis/prioritization.service.js";
+import { calculateAllTrafficLights } from "../services/analysis/trafficLight.service.js";
 
 import { saveScanSnapshot } from "../services/history/history.service.js";
 import { calculateBenchmark } from "../services/analysis/benchmark.service.js";
@@ -39,10 +41,12 @@ export async function runScanV3(req, reply) {
     /* ------------------------
        FASE 4 — BASE SCANS (AISLADOS)
     ------------------------ */
-    const [contacts, users, deals] = await Promise.all([
+    const [contacts, users, deals, companies, tools] = await Promise.all([
       analyzeContacts(req.server, portalId, token),
       analyzeUsers(req.server, portalId, token),
-      analyzeDeals(req.server, portalId, token)
+      analyzeDeals(req.server, portalId, token),
+      analyzeCompanies(req.server, portalId, token),
+      analyzeToolsUsage(req.server, portalId, token)
     ]);
 
     
@@ -75,6 +79,16 @@ export async function runScanV3(req, reply) {
     const prioritization = generatePrioritization(insights);
 
     /* ------------------------
+       FASE 8 — TRAFFIC LIGHTS
+    ------------------------ */
+    const trafficLights = calculateAllTrafficLights({
+      contacts,
+      users,
+      deals,
+      companies
+    });
+
+    /* ------------------------
        FASE 9 — HISTORY (NO BLOQUEANTE)
     ------------------------ */
     try {
@@ -86,7 +100,24 @@ export async function runScanV3(req, reply) {
         contactsTotal: contacts.total,
         usersTotal: users.total,
         criticalInsights: prioritization.summary.critical,
-        warningInsights: prioritization.summary.warning
+        warningInsights: prioritization.summary.warning,
+        // Nuevas métricas
+        dealsTotal: deals.total,
+        dealsWithoutContact: deals.withoutContact?.count || 0,
+        dealsWithoutOwner: deals.withoutOwner?.count || 0,
+        dealsWithoutPrice: deals.withoutPrice?.count || 0,
+        dealsInactive: deals.inactive?.count || 0,
+        companiesTotal: companies.total,
+        companiesWithoutDomain: companies.withoutDomain?.count || 0,
+        companiesWithoutOwner: companies.withoutOwner?.count || 0,
+        companiesInactive: companies.inactive?.count || 0,
+        toolsInUse: tools.inUse?.length || 0,
+        toolsTotal: tools.totalTools || 0,
+        toolsUsagePercentage: tools.usagePercentage || 0,
+        contactsScore: trafficLights.contacts?.score || 100,
+        dealsScore: trafficLights.deals?.score || 100,
+        companiesScore: trafficLights.companies?.score || 100,
+        usersScore: trafficLights.users?.score || 100
       });
     } catch (err) {
       req.server.log.warn(
@@ -118,23 +149,26 @@ export async function runScanV3(req, reply) {
       "Scan V3 completed"
     );
 
-    /* ------------------------
-       RESPONSE FINAL
-    ------------------------ */
-    return {
-      version: "v3",
-      portalId,
-      efficiency,
-      benchmark,
-      prioritization,
-      insights,
-      contacts,
-      users,
-      deals,
-      meta: {
-        durationMs: duration
-      }
-    };
+     /* ------------------------
+        RESPONSE FINAL
+     ------------------------ */
+     return {
+       version: "v3",
+       portalId,
+       efficiency,
+       benchmark,
+       prioritization,
+       insights,
+       contacts,
+       users,
+       deals,
+       companies,
+       tools,
+       trafficLights,
+       meta: {
+         durationMs: duration
+       }
+     };
   } catch (err) {
     req.server.log.error(
       { err, portalId },

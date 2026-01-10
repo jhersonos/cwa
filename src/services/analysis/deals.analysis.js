@@ -2,6 +2,7 @@
 import axios from "axios";
 
 const HUBSPOT_API = "https://api.hubapi.com";
+const THREE_MONTHS = 90 * 24 * 60 * 60 * 1000;
 
 /* ----------------------------------
    HELPERS
@@ -21,7 +22,8 @@ function normalizeDeal(deal) {
     id: deal.id,
     name: props.dealname || `Deal ${deal.id}`,
     stage: props.dealstage || null,
-    amount: props.amount ? Number(props.amount) : null
+    amount: props.amount ? Number(props.amount) : null,
+    lastModified: props.hs_lastmodifieddate || null
   };
 }
 
@@ -46,7 +48,10 @@ export async function analyzeDeals(fastify, portalId, token) {
             "dealname",
             "dealstage",
             "amount",
-            "hubspot_owner_id"
+            "hubspot_owner_id",
+            "hs_lastmodifieddate",
+            "closedate",
+            "pipeline"
           ].join(",")
         },
         timeout: 8000
@@ -87,6 +92,20 @@ export async function analyzeDeals(fastify, portalId, token) {
         score: 100,
         items: []
       },
+      withoutPrice: {
+        count: 0,
+        percentage: 0,
+        score: 100,
+        items: []
+      },
+      inactive: {
+        count: 0,
+        percentage: 0,
+        score: 100,
+        items: []
+      },
+      stagesSummary: [],
+      averageActivities: 0,
       limitedVisibility
     };
   }
@@ -135,6 +154,94 @@ export async function analyzeDeals(fastify, portalId, token) {
     ((withoutOwnerCount / totalDeals) * 100).toFixed(1)
   );
 
+  /* ----------------------------------
+     DEALS SIN PRECIO
+  ---------------------------------- */
+
+  const dealsWithoutPrice = deals
+    .filter(d => !d.properties?.amount || Number(d.properties.amount) === 0)
+    .map(normalizeDeal);
+
+  const withoutPriceCount = dealsWithoutPrice.length;
+  const withoutPricePercentage = Number(
+    ((withoutPriceCount / totalDeals) * 100).toFixed(1)
+  );
+
+  /* ----------------------------------
+     DEALS INACTIVOS (3 MESES)
+  ---------------------------------- */
+
+  const threeMonthsAgo = Date.now() - THREE_MONTHS;
+  const inactiveDeals = deals
+    .filter(d => {
+      const lastMod = d.properties?.hs_lastmodifieddate;
+      if (!lastMod) return false;
+      return new Date(lastMod).getTime() < threeMonthsAgo;
+    })
+    .map(normalizeDeal);
+
+  const inactiveCount = inactiveDeals.length;
+  const inactivePercentage = Number(
+    ((inactiveCount / totalDeals) * 100).toFixed(1)
+  );
+
+  /* ----------------------------------
+     RESUMEN POR ETAPAS
+  ---------------------------------- */
+
+  const stagesSummary = {};
+  deals.forEach(d => {
+    const stage = d.properties?.dealstage || "Sin etapa";
+    if (!stagesSummary[stage]) {
+      stagesSummary[stage] = 0;
+    }
+    stagesSummary[stage]++;
+  });
+
+  const stagesArray = Object.entries(stagesSummary).map(([stage, count]) => ({
+    stage,
+    count,
+    percentage: Number(((count / totalDeals) * 100).toFixed(1))
+  }));
+
+  /* ----------------------------------
+     PROMEDIO DE ACTIVIDADES POR DEAL
+  ---------------------------------- */
+
+  let totalActivities = 0;
+  let dealsWithActivities = 0;
+
+  // Fetch actividades para una muestra de deals (primeros 20)
+  const sampleSize = Math.min(20, totalDeals);
+  for (let i = 0; i < sampleSize; i++) {
+    try {
+      const activitiesRes = await axios.get(
+        `${HUBSPOT_API}/crm/v3/objects/deals/${deals[i].id}/associations/activities`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          },
+          timeout: 3000
+        }
+      );
+
+      const activityCount = activitiesRes.data?.results?.length || 0;
+      totalActivities += activityCount;
+      dealsWithActivities++;
+    } catch {
+      // Ignorar errores individuales
+      limitedVisibility = true;
+    }
+  }
+
+  const averageActivities = dealsWithActivities > 0
+    ? Number((totalActivities / dealsWithActivities).toFixed(1))
+    : 0;
+
+  /* ----------------------------------
+     RESPONSE
+  ---------------------------------- */
+
   return {
     total: totalDeals,
     withoutContact: {
@@ -149,6 +256,20 @@ export async function analyzeDeals(fastify, portalId, token) {
       score: calculateScore(withoutOwnerPercentage),
       items: dealsWithoutOwner
     },
+    withoutPrice: {
+      count: withoutPriceCount,
+      percentage: withoutPricePercentage,
+      score: calculateScore(withoutPricePercentage),
+      items: dealsWithoutPrice
+    },
+    inactive: {
+      count: inactiveCount,
+      percentage: inactivePercentage,
+      score: calculateScore(inactivePercentage),
+      items: inactiveDeals
+    },
+    stagesSummary: stagesArray,
+    averageActivities,
     limitedVisibility
   };
 }
