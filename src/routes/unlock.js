@@ -14,6 +14,64 @@ import { runScanV3 } from "../controllers/scan.controller.js";
 export default async function unlockRoutes(fastify) {
   
   /**
+   * POST /api/unlock/create-token (ADMIN ONLY)
+   * Crea un nuevo token desde WordPress después de pago confirmado
+   */
+  fastify.post("/api/unlock/create-token", async (req, reply) => {
+    // Validar token admin
+    const adminToken = req.headers.authorization?.replace('Bearer ', '');
+    
+    if (adminToken !== process.env.CWA_ADMIN_SECRET) {
+      return reply.code(401).send({ 
+        error: "Unauthorized",
+        message: "Invalid admin token" 
+      });
+    }
+
+    const { portalId, email, orderId, expiresInDays = 30 } = req.body;
+
+    if (!portalId || !email) {
+      return reply.code(400).send({ 
+        error: "Missing required fields",
+        message: "Se requiere portalId y email" 
+      });
+    }
+
+    try {
+      // Generar token único
+      const crypto = await import('crypto');
+      const token = crypto.randomBytes(16).toString('hex');
+      
+      // Calcular fecha de expiración
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+
+      // Guardar en base de datos
+      await fastify.mysql.query(
+        `INSERT INTO unlock_tokens (portal_id, token, expires_at, payment_reference) 
+         VALUES (?, ?, ?, ?)`,
+        [portalId, token, expiresAt, orderId || null]
+      );
+
+      fastify.log.info({ portalId, token, orderId }, "Unlock token created from payment");
+
+      return reply.send({
+        success: true,
+        token,
+        expiresAt: expiresAt.toISOString(),
+        message: "Token creado exitosamente"
+      });
+
+    } catch (error) {
+      fastify.log.error({ err: error, portalId }, "Error creating unlock token");
+      return reply.code(500).send({ 
+        error: "Token creation failed",
+        message: "Error al crear token" 
+      });
+    }
+  });
+
+  /**
    * POST /api/unlock/validate
    * Valida un token de desbloqueo
    */
