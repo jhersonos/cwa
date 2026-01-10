@@ -15,7 +15,27 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default async function buildApp() {
-  const app = Fastify({ logger: true });
+  const app = Fastify({ 
+    logger: true,
+    // Aceptar requests sin Content-Type header (para HubSpot fetch)
+    ignoreTrailingSlash: true,
+    bodyLimit: 1048576 // 1MB
+  });
+
+  // Parser customizado para requests sin Content-Type
+  app.addContentTypeParser('*', { parseAs: 'string' }, (req, body, done) => {
+    try {
+      // Intentar parsear como JSON si parece JSON
+      if (body && (body.startsWith('{') || body.startsWith('['))) {
+        const json = JSON.parse(body);
+        done(null, json);
+      } else {
+        done(null, body);
+      }
+    } catch (err) {
+      done(err);
+    }
+  });
 
   // Servir archivos estáticos desde /public
   await app.register(fastifyStatic, {
