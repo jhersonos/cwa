@@ -307,50 +307,79 @@ export default async function paymentRoutes(fastify) {
    */
   fastify.get("/api/payment/debug", async (req, reply) => {
     try {
-      // Verificar tabla
+      // Verificar tabla con más detalle
       let tableExists = false;
+      let tableError = null;
+      let tablesList = [];
+      
       try {
+        // Primero, listar todas las tablas
+        const [allTables] = await fastify.mysql.query(`SHOW TABLES`);
+        tablesList = allTables.map(t => Object.values(t)[0]);
+        
+        // Verificar si existe unlock_tokens
         await fastify.mysql.query(`SELECT 1 FROM unlock_tokens LIMIT 1`);
         tableExists = true;
       } catch (e) {
         tableExists = false;
+        tableError = {
+          message: e.message,
+          code: e.code,
+          sqlMessage: e.sqlMessage
+        };
       }
 
       // Contar tokens
       let tokenCount = 0;
       let tokens = [];
       if (tableExists) {
-        const [rows] = await fastify.mysql.query(
-          `SELECT portal_id, token, payment_reference, status, created_at, expires_at 
-           FROM unlock_tokens 
-           ORDER BY created_at DESC 
-           LIMIT 5`
-        );
-        tokenCount = rows.length;
-        tokens = rows;
+        try {
+          const [rows] = await fastify.mysql.query(
+            `SELECT portal_id, token, payment_reference, status, created_at, expires_at 
+             FROM unlock_tokens 
+             ORDER BY created_at DESC 
+             LIMIT 5`
+          );
+          tokenCount = rows.length;
+          tokens = rows;
+        } catch (e) {
+          fastify.log.error({ err: e }, "Error fetching tokens");
+        }
       }
 
       // Verificar MercadoPago
       let mercadoPagoConfigured = !!process.env.MERCADOPAGO_ACCESS_TOKEN;
 
+      // Verificar que Railway redesplegó
+      const deploymentInfo = {
+        nodeVersion: process.version,
+        timestamp: new Date().toISOString()
+      };
+
       return reply.send({
         status: 'OK',
+        deployment: deploymentInfo,
         database: {
           tableExists,
           tokenCount,
-          recentTokens: tokens
+          recentTokens: tokens,
+          allTables: tablesList,
+          error: tableError
         },
         mercadoPago: {
           configured: mercadoPagoConfigured,
           accessToken: mercadoPagoConfigured ? '✅ Configured' : '❌ Missing'
         },
         environment: {
-          baseUrl: process.env.BASE_URL || 'not set'
+          baseUrl: process.env.BASE_URL || 'not set',
+          nodeEnv: process.env.NODE_ENV || 'not set'
         }
       });
     } catch (error) {
+      fastify.log.error({ err: error }, "Error in debug endpoint");
       return reply.code(500).send({
         error: error.message,
+        code: error.code,
         stack: error.stack
       });
     }
