@@ -40,15 +40,14 @@ export async function runScanV3(req, reply) {
 
     /* ------------------------
        FASE 4 — BASE SCANS (AISLADOS)
-       🚀 Análisis rápido - solo core objects
-       ⏱️ Tools analysis opcional por performance
+       🚀 Análisis rápido - core objects + tools (optimizado)
     ------------------------ */
     const results = await Promise.allSettled([
       analyzeContacts(req.server, portalId, token),
       analyzeUsers(req.server, portalId, token),
       analyzeDeals(req.server, portalId, token),
-      analyzeCompanies(req.server, portalId, token)
-      // Tools eliminado temporalmente por performance
+      analyzeCompanies(req.server, portalId, token),
+      analyzeToolsUsage(req.server, portalId, token)
     ]);
 
     // 🛡️ Extraer resultados con fallbacks seguros
@@ -56,15 +55,7 @@ export async function runScanV3(req, reply) {
     const users = results[1].status === 'fulfilled' ? results[1].value : { total: 0, score: 100, active: 0, limitedVisibility: true };
     const deals = results[2].status === 'fulfilled' ? results[2].value : { total: 0, withoutContact: { count: 0, score: 100 }, withoutOwner: { count: 0, score: 100 }, withoutPrice: { count: 0, score: 100 }, inactive: { count: 0, score: 100 }, limitedVisibility: true };
     const companies = results[3].status === 'fulfilled' ? results[3].value : { total: 0, withoutDomain: { count: 0, score: 100 }, withoutOwner: { count: 0, score: 100 }, withoutPhone: { count: 0, score: 100 }, inactive: { count: 0, score: 100 }, limitedVisibility: true };
-    
-    // 🚀 Tools analysis deshabilitado por performance (15s → 8s)
-    const tools = { 
-      unused: [], 
-      inUse: [], 
-      totalTools: 0, 
-      usagePercentage: 0, 
-      limitedVisibility: false 
-    };
+    const tools = results[4].status === 'fulfilled' ? results[4].value : { unused: [], inUse: [], totalTools: 0, usagePercentage: 0, limitedVisibility: true };
 
     
     /* ------------------------
