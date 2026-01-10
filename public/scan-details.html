@@ -179,7 +179,8 @@
 
         async function loadDetails() {
             try {
-                const response = await fetch(`/api/scan-v3?portalId=${portalId}`);
+                // Usar URL completa
+                const response = await fetch(`https://cwa.estado7.com/api/scan-v3?portalId=${portalId}`);
                 
                 if (!response.ok) {
                     throw new Error('Error al cargar datos');
@@ -187,11 +188,17 @@
                 
                 const data = await response.json();
                 const html = await renderDetails(type, data);
+                
+                // Verificar que html no sea undefined o vacío
+                if (!html || html === 'undefined') {
+                    throw new Error('No se pudieron renderizar los detalles');
+                }
+                
                 document.getElementById('content').innerHTML = html;
             } catch (error) {
                 document.getElementById('content').innerHTML = `
                     <div class="error">
-                        <strong>Error:</strong> ${error.message}
+                        <strong>Error:</strong> ${error.message || 'Error desconocido'}
                     </div>
                 `;
             }
@@ -277,7 +284,7 @@
             let contactsTable = '<p class="no-data">Cargando contactos...</p>';
             
             try {
-                const contactsRes = await fetch(`/api/contacts/incomplete?portalId=${portalId}`);
+                const contactsRes = await fetch(`https://cwa.estado7.com/api/contacts/incomplete?portalId=${portalId}`);
                 if (contactsRes.ok) {
                     const contactsData = await contactsRes.json();
                     const contacts = contactsData.contacts || [];
