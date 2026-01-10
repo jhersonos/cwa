@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desbloquear Auditoría Completa - Cost CRM Risk Scanner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #0091AE;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        
+        .price {
+            font-size: 48px;
+            font-weight: bold;
+            color: #0091AE;
+            margin: 20px 0;
+        }
+        
+        .price-detail {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .features {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        
+        .features h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .features ul {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .features li {
+            padding: 8px 0;
+            color: #555;
+            display: flex;
+            align-items: center;
+        }
+        
+        .features li:before {
+            content: "✓";
+            color: #10b981;
+            font-weight: bold;
+            margin-right: 10px;
+            font-size: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border 0.3s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #0091AE;
+        }
+        
+        .cta-button {
+            background: #0091AE;
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.3s;
+            margin-top: 20px;
+        }
+        
+        .cta-button:hover:not(:disabled) {
+            background: #007a8c;
+        }
+        
+        .cta-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .error {
+            background: #fee2e2;
+            border: 1px solid #ef4444;
+            color: #b91c1c;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .error.show {
+            display: block;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #0091AE;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .secure-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: #666;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+        
+        .secure-badge:before {
+            content: "🔒";
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔓 Desbloquear Auditoría Completa</h1>
+        <p class="subtitle">
+            Obtén acceso a exportaciones completas de registros afectados y resumen detallado de auditoría.
+        </p>
+        
+        <div class="price">$9.99 USD</div>
+        <p class="price-detail">Válido por 30 días • Un solo pago</p>
+        
+        <div class="features">
+            <h3>Incluye:</h3>
+            <ul>
+                <li>Exportación CSV de deals sin owner, contacto o precio</li>
+                <li>Exportación de contactos sin email o datos incompletos</li>
+                <li>Exportación de empresas sin teléfono o información crítica</li>
+                <li>Resumen completo de auditoría con scores y recomendaciones</li>
+                <li>Ideal para trabajo interno o con agencias/consultores</li>
+                <li>Token válido por 30 días desde la activación</li>
+            </ul>
+        </div>
+        
+        <div id="error" class="error"></div>
+        
+        <form id="checkout-form">
+            <div class="form-group">
+                <label for="portal-id">Portal ID de HubSpot *</label>
+                <input 
+                    type="text" 
+                    id="portal-id" 
+                    name="portalId" 
+                    required 
+                    placeholder="Ej: 12345678"
+                    pattern="[0-9]+"
+                    title="Solo números"
+                >
+                <small style="color: #666; font-size: 13px;">
+                    Encuentra tu Portal ID en la configuración de HubSpot
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email *</label>
+                <input 
+                    type="email" 
+                    id="email" 
+                    name="email" 
+                    required 
+                    placeholder="tu@email.com"
+                >
+                <small style="color: #666; font-size: 13px;">
+                    Te enviaremos el token de desbloqueo a este email
+                </small>
+            </div>
+            
+            <button type="submit" class="cta-button" id="submit-btn">
+                Continuar a MercadoPago →
+            </button>
+        </form>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Creando checkout seguro...</p>
+        </div>
+        
+        <div class="secure-badge">
+            Pago seguro procesado por MercadoPago
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('checkout-form');
+        const submitBtn = document.getElementById('submit-btn');
+        const loading = document.getElementById('loading');
+        const errorDiv = document.getElementById('error');
+        
+        // Capturar Portal ID de URL si viene de HubSpot
+        const urlParams = new URLSearchParams(window.location.search);
+        const portalIdFromUrl = urlParams.get('portalId');
+        if (portalIdFromUrl) {
+            document.getElementById('portal-id').value = portalIdFromUrl;
+        }
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const portalId = document.getElementById('portal-id').value;
+            const email = document.getElementById('email').value;
+            
+            // Validar
+            if (!portalId || !email) {
+                showError('Por favor completa todos los campos');
+                return;
+            }
+            
+            // Mostrar loading
+            form.style.display = 'none';
+            loading.classList.add('show');
+            errorDiv.classList.remove('show');
+            
+            try {
+                // Crear preferencia de pago en backend
+                const response = await fetch('/api/payment/create-preference', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        portalId,
+                        email
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Error al crear checkout');
+                }
+                
+                const data = await response.json();
+                
+                // Redirigir a MercadoPago
+                window.location.href = data.init_point;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showError(error.message || 'Error al procesar pago');
+                form.style.display = 'block';
+                loading.classList.remove('show');
+            }
+        });
+        
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+        }
+    </script>
+</body>
+</html>
+

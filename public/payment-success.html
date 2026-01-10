@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>¡Pago Confirmado! - Cost CRM Risk Scanner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            max-width: 700px;
+            width: 100%;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        
+        .success-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            color: #10b981;
+            margin-bottom: 10px;
+            font-size: 36px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 18px;
+        }
+        
+        .token-container {
+            background: #f0f9ff;
+            border: 2px solid #0891b2;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px 0;
+        }
+        
+        .token-label {
+            font-size: 14px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        
+        .token-display {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .token {
+            font-family: 'Courier New', monospace;
+            font-size: 24px;
+            font-weight: bold;
+            color: #0891b2;
+            background: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            border: 2px solid #0891b2;
+        }
+        
+        .copy-btn {
+            background: #0891b2;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .copy-btn:hover {
+            background: #0e7490;
+        }
+        
+        .copy-btn.copied {
+            background: #10b981;
+        }
+        
+        .instructions {
+            text-align: left;
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 30px 0;
+        }
+        
+        .instructions h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .instructions ol {
+            margin-left: 20px;
+        }
+        
+        .instructions li {
+            margin: 10px 0;
+            color: #555;
+            line-height: 1.6;
+        }
+        
+        .cta-button {
+            background: #0091AE;
+            color: white;
+            text-decoration: none;
+            padding: 16px 32px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            display: inline-block;
+            transition: background 0.3s;
+            margin-top: 20px;
+        }
+        
+        .cta-button:hover {
+            background: #007a8c;
+        }
+        
+        .email-info {
+            color: #666;
+            font-size: 14px;
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff7ed;
+            border-radius: 8px;
+            border: 1px solid #f59e0b;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #10b981;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="loading-state" class="loading">
+            <div class="spinner"></div>
+            <p>Verificando tu pago...</p>
+        </div>
+        
+        <div id="success-state" style="display: none;">
+            <div class="success-icon">✓</div>
+            <h1>¡Pago Confirmado!</h1>
+            <p class="subtitle">Tu auditoría completa ha sido desbloqueada</p>
+            
+            <div class="token-container">
+                <div class="token-label">Tu Token de Desbloqueo</div>
+                <div class="token-display">
+                    <code class="token" id="token">Cargando...</code>
+                    <button class="copy-btn" id="copy-btn" onclick="copyToken()">
+                        Copiar
+                    </button>
+                </div>
+            </div>
+            
+            <div class="instructions">
+                <h3>📋 Cómo usar tu token:</h3>
+                <ol>
+                    <li><strong>Abre Cost CRM Risk Scanner</strong> en tu cuenta de HubSpot</li>
+                    <li><strong>Click en "🔓 Desbloquear auditoría completa"</strong></li>
+                    <li><strong>Pega el token</strong> en el campo correspondiente</li>
+                    <li><strong>Click en "Validar token"</strong></li>
+                    <li>¡Listo! Podrás descargar todos los reportes CSV</li>
+                </ol>
+            </div>
+            
+            <div class="email-info">
+                📧 También enviamos el token a tu email: <strong id="user-email"></strong>
+            </div>
+            
+            <a href="https://app.hubspot.com" class="cta-button">
+                Ir a HubSpot →
+            </a>
+            
+            <p style="margin-top: 30px; color: #666; font-size: 14px;">
+                Tu token es válido por 30 días desde hoy
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const paymentId = urlParams.get('payment_id');
+        const preferenceId = urlParams.get('preference_id');
+        const status = urlParams.get('status');
+        
+        async function loadTokenInfo() {
+            try {
+                if (status === 'approved' && paymentId) {
+                    // Esperar unos segundos para que el webhook procese
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    
+                    // Obtener info del token
+                    const response = await fetch(`/api/payment/token-info?payment_id=${paymentId}`);
+                    
+                    if (!response.ok) {
+                        throw new Error('Error al obtener token');
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Mostrar token
+                    document.getElementById('token').textContent = data.token;
+                    document.getElementById('user-email').textContent = data.email;
+                    
+                    document.getElementById('loading-state').style.display = 'none';
+                    document.getElementById('success-state').style.display = 'block';
+                    
+                } else if (status === 'pending') {
+                    // Pago pendiente
+                    document.getElementById('loading-state').innerHTML = `
+                        <div class="spinner"></div>
+                        <h2 style="color: #f59e0b;">Pago Pendiente</h2>
+                        <p>Tu pago está siendo procesado. Te enviaremos un email cuando se confirme.</p>
+                    `;
+                } else {
+                    // Error o cancelado
+                    document.getElementById('loading-state').innerHTML = `
+                        <h2 style="color: #ef4444;">Pago No Completado</h2>
+                        <p>Hubo un problema con tu pago. Por favor intenta nuevamente.</p>
+                        <a href="/payment" class="cta-button" style="margin-top: 20px;">Reintentar Pago</a>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('loading-state').innerHTML = `
+                    <h2 style="color: #ef4444;">Error</h2>
+                    <p>No pudimos verificar tu pago. Por favor contacta a soporte.</p>
+                `;
+            }
+        }
+        
+        function copyToken() {
+            const token = document.getElementById('token').textContent;
+            const copyBtn = document.getElementById('copy-btn');
+            
+            navigator.clipboard.writeText(token).then(() => {
+                copyBtn.textContent = '✓ Copiado';
+                copyBtn.classList.add('copied');
+                
+                setTimeout(() => {
+                    copyBtn.textContent = 'Copiar';
+                    copyBtn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+        
+        // Cargar info al iniciar
+        loadTokenInfo();
+    </script>
+</body>
+</html>
+

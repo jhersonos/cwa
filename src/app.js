@@ -12,6 +12,7 @@ import scanProgressiveRoutes from "./routes/scanProgressive.js";
 import debugRoutes from "./routes/debug.js";
 import unlockRoutes from "./routes/unlock.js";
 import contactsDetailsRoutes from "./routes/contactsDetails.js";
+import paymentRoutes from "./routes/payment.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,6 +56,7 @@ export default async function buildApp() {
   await app.register(debugRoutes);
   await app.register(unlockRoutes);
   await app.register(contactsDetailsRoutes);
+  await app.register(paymentRoutes);
   
   app.get("/", async () => {
     return {
