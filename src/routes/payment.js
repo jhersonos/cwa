@@ -302,6 +302,61 @@ export default async function paymentRoutes(fastify) {
   });
 
   /**
+   * GET /api/payment/debug
+   * Endpoint de diagnóstico
+   */
+  fastify.get("/api/payment/debug", async (req, reply) => {
+    try {
+      // Verificar tabla
+      let tableExists = false;
+      try {
+        await fastify.mysql.query(`SELECT 1 FROM unlock_tokens LIMIT 1`);
+        tableExists = true;
+      } catch (e) {
+        tableExists = false;
+      }
+
+      // Contar tokens
+      let tokenCount = 0;
+      let tokens = [];
+      if (tableExists) {
+        const [rows] = await fastify.mysql.query(
+          `SELECT portal_id, token, payment_reference, status, created_at, expires_at 
+           FROM unlock_tokens 
+           ORDER BY created_at DESC 
+           LIMIT 5`
+        );
+        tokenCount = rows.length;
+        tokens = rows;
+      }
+
+      // Verificar MercadoPago
+      let mercadoPagoConfigured = !!process.env.MERCADOPAGO_ACCESS_TOKEN;
+
+      return reply.send({
+        status: 'OK',
+        database: {
+          tableExists,
+          tokenCount,
+          recentTokens: tokens
+        },
+        mercadoPago: {
+          configured: mercadoPagoConfigured,
+          accessToken: mercadoPagoConfigured ? '✅ Configured' : '❌ Missing'
+        },
+        environment: {
+          baseUrl: process.env.BASE_URL || 'not set'
+        }
+      });
+    } catch (error) {
+      return reply.code(500).send({
+        error: error.message,
+        stack: error.stack
+      });
+    }
+  });
+
+  /**
    * GET /payment/pending
    * Sirve la página de pago pendiente
    */
