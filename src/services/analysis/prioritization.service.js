@@ -97,15 +97,17 @@ function calculatePriorityScore(insight) {
  * Genera resumen ejecutivo profesional
  */
 function generateExecutiveSummary(summary, insights) {
+  const samplingContext = "Cost CRM Risk Scanner realiza diagnóstico basado en muestreo inteligente: si un patrón aparece en la muestra, es muy probable que exista en el resto de la cuenta. ";
+
   if (summary.critical === 0 && summary.warning === 0) {
-    return "La cuenta presenta indicadores saludables de gobernanza CRM. No se detectaron riesgos operativos críticos en la muestra analizada. Se recomienda mantener disciplina en procesos actuales y realizar revisiones trimestrales preventivas.";
+    return samplingContext + "La muestra analizada presenta indicadores saludables de gobernanza CRM. No se detectaron riesgos operativos críticos. Se recomienda mantener disciplina en procesos actuales y realizar revisiones trimestrales preventivas.";
   }
 
-  let executiveSummary = "";
+  let executiveSummary = samplingContext;
 
   // Evaluación de severidad
   if (summary.critical > 0) {
-    executiveSummary = `Se detectaron ${summary.critical} riesgo(s) crítico(s) que afectan directamente operación comercial, forecasting o automatización. `;
+    executiveSummary += `Se detectaron ${summary.critical} patrón(es) de riesgo crítico que afectan directamente operación comercial, forecasting o automatización. `;
     
     if (summary.urgentCount > 0) {
       executiveSummary += `${summary.urgentCount} de ellos requieren acción inmediata. `;
@@ -124,7 +126,7 @@ function generateExecutiveSummary(summary, insights) {
     executiveSummary += "Se recomienda auditoría profesional completa para evaluar impacto total y diseñar plan de remediación estructurado.";
   } 
   else if (summary.warning > 0) {
-    executiveSummary = `Se identificaron ${summary.warning} oportunidad(es) de optimización que afectan eficiencia operativa y calidad de datos. `;
+    executiveSummary += `Se identificaron ${summary.warning} patrón(es) de oportunidad de optimización que afectan eficiencia operativa y calidad de datos. `;
     
     if (summary.urgentCount > 0) {
       executiveSummary += `${summary.urgentCount} de ellas con prioridad alta. `;
