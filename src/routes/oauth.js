@@ -10,12 +10,18 @@ export default async function oauthRoutes(fastify) {
 
   fastify.get("/oauth/start", async (req, reply) => {
     const scopes = [
+      "oauth",
       "crm.objects.contacts.read",
       "crm.objects.companies.read",
       "crm.objects.deals.read",
       "crm.objects.owners.read",
+      "crm.schemas.deals.read",
+      "tickets",
+      "crm.objects.line_items.read",
       "settings.users.read",
-      "automation" // 👈 CLAVE
+      "automation",
+      "forms",
+      "content"
     ].join(" ");
 
     const authUrl =
