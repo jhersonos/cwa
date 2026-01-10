@@ -249,12 +249,33 @@ export default async function scanProgressiveRoutes(fastify) {
   ---------------------------------- */
   fastify.post("/api/scan-progressive/finalize", async (req, reply) => {
     const start = Date.now();
-    const { portalId, contacts, users, deals, companies, tools } = req.body;
     
-    req.server.log.info({ portalId }, "Starting finalize");
+    // HubSpot puede enviar portalId como query param
+    const portalId = req.body?.portalId || req.query?.portalId;
+    const { contacts, users, deals, companies, tools } = req.body || {};
+    
+    req.server.log.info({ 
+      portalId, 
+      hasBody: !!req.body,
+      hasQuery: !!req.query,
+      bodyKeys: req.body ? Object.keys(req.body) : [],
+      queryKeys: req.query ? Object.keys(req.query) : []
+    }, "Starting finalize");
     
     if (!portalId) {
-      return reply.code(400).send({ error: "Missing portalId" });
+      req.server.log.error({ 
+        body: req.body, 
+        query: req.query 
+      }, "Missing portalId in both body and query");
+      return reply.code(400).send({ 
+        error: "Missing portalId",
+        debug: {
+          hasBody: !!req.body,
+          hasQuery: !!req.query,
+          bodyKeys: req.body ? Object.keys(req.body) : [],
+          queryKeys: req.query ? Object.keys(req.query) : []
+        }
+      });
     }
 
     try {
