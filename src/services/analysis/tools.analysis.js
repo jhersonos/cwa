@@ -54,11 +54,8 @@ export async function analyzeToolsUsage(fastify, portalId, token) {
       headers: { Authorization: `Bearer ${token}` },
       timeout: 2500
     }),
-    // Custom Objects
-    axios.get(`${HUBSPOT_API}/crm/v3/schemas`, {
-      headers: { Authorization: `Bearer ${token}` },
-      timeout: 2500
-    })
+    // Custom Objects (skip - 403 en muchas cuentas)
+    Promise.resolve({ data: { results: [] } })
   ]);
 
   /* ----------------------------------

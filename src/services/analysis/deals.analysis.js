@@ -206,37 +206,11 @@ export async function analyzeDeals(fastify, portalId, token) {
 
   /* ----------------------------------
      PROMEDIO DE ACTIVIDADES POR DEAL
+     🔴 DESHABILITADO - API no disponible en todas las cuentas
+     Error 400: This endpoint is only available for Enterprise accounts
   ---------------------------------- */
 
-  let totalActivities = 0;
-  let dealsWithActivities = 0;
-
-  // Fetch actividades para una muestra de deals (primeros 10)
-  const sampleSize = Math.min(10, totalDeals);
-  for (let i = 0; i < sampleSize; i++) {
-    try {
-      const activitiesRes = await axios.get(
-        `${HUBSPOT_API}/crm/v3/objects/deals/${deals[i].id}/associations/activities`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          },
-          timeout: 2500
-        }
-      );
-
-      const activityCount = activitiesRes.data?.results?.length || 0;
-      totalActivities += activityCount;
-      dealsWithActivities++;
-    } catch {
-      // Ignorar errores individuales
-      limitedVisibility = true;
-    }
-  }
-
-  const averageActivities = dealsWithActivities > 0
-    ? Number((totalActivities / dealsWithActivities).toFixed(1))
-    : 0;
+  const averageActivities = 0; // Deshabilitado para compatibilidad universal
 
   /* ----------------------------------
      RESPONSE
