@@ -186,7 +186,8 @@
                 }
                 
                 const data = await response.json();
-                renderDetails(type, data);
+                const html = await renderDetails(type, data);
+                document.getElementById('content').innerHTML = html;
             } catch (error) {
                 document.getElementById('content').innerHTML = `
                     <div class="error">
@@ -196,12 +197,12 @@
             }
         }
 
-        function renderDetails(type, data) {
+        async function renderDetails(type, data) {
             let html = '';
             
             switch(type) {
                 case 'contacts-incomplete':
-                    html = renderContactsIncomplete(data);
+                    html = await renderContactsIncomplete(data);
                     break;
                 case 'contacts-no-email-critical':
                 case 'contacts-no-email-warning':
@@ -263,7 +264,7 @@
             document.getElementById('content').innerHTML = html;
         }
 
-        function renderContactsIncomplete(data) {
+        async function renderContactsIncomplete(data) {
             const withoutEmail = data.contacts.withoutEmail;
             const withoutPhone = data.contacts.withoutPhone;
             const withoutLifecycle = data.contacts.withoutLifecycle;
@@ -271,6 +272,56 @@
             const total = data.contacts.total;
             
             const totalIssues = withoutEmail + withoutPhone + withoutLifecycle;
+            
+            // Fetch contactos específicos con problemas
+            let contactsTable = '<p class="no-data">Cargando contactos...</p>';
+            
+            try {
+                const contactsRes = await fetch(`/api/contacts/incomplete?portalId=${portalId}`);
+                if (contactsRes.ok) {
+                    const contactsData = await contactsRes.json();
+                    const contacts = contactsData.contacts || [];
+                    
+                    if (contacts.length > 0) {
+                        contactsTable = `
+                            <div class="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Nombre</th>
+                                            <th>Email</th>
+                                            <th>Teléfono</th>
+                                            <th>Lifecycle</th>
+                                            <th>Problemas</th>
+                                            <th>Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${contacts.map(contact => `
+                                            <tr>
+                                                <td>${contact.firstname} ${contact.lastname}</td>
+                                                <td>${contact.email || 'Sin email'}</td>
+                                                <td>${contact.phone || 'Sin teléfono'}</td>
+                                                <td>${contact.lifecyclestage || 'Sin lifecycle'}</td>
+                                                <td><span style="color: #f59e0b; font-weight: 500;">${contact.issues}</span></td>
+                                                <td>
+                                                    <a href="https://app.hubspot.com/contacts/${portalId}/contact/${contact.id}" class="hubspot-link" target="_blank">
+                                                        Ver en HubSpot →
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        `;
+                    } else {
+                        contactsTable = '<p class="no-data">No se encontraron contactos con problemas en esta muestra.</p>';
+                    }
+                }
+            } catch (error) {
+                contactsTable = '<p class="no-data">Error al cargar contactos específicos.</p>';
+            }
             
             return `
                 <h1>Contactos con Datos Incompletos</h1>
@@ -299,6 +350,9 @@
                         💡 Este patrón fue detectado en la muestra analizada y suele repetirse en el resto de la cuenta.
                     </p>
                 </div>
+                
+                <h3 style="margin-top: 30px;">Contactos afectados en la muestra:</h3>
+                ${contactsTable}
                 
                 <p style="margin-top: 20px;">
                     <a href="https://app.hubspot.com/contacts/${portalId}/objects/0-1/views/all/list" class="hubspot-link" target="_blank">
