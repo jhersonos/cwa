@@ -70,7 +70,10 @@ export async function runScanV3(req, reply) {
     const insights = generateInsights({
       efficiency,
       contacts,
-      users
+      users,
+      deals,
+      companies,
+      tools
     });
 
     /* ------------------------
