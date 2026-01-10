@@ -84,7 +84,7 @@ export default async function paymentRoutes(fastify) {
     try {
       const { type, data } = req.body;
 
-      fastify.log.info({ type, data }, "Received payment webhook");
+      fastify.log.info({ type, data, body: req.body }, "Received payment webhook");
 
       // Solo procesar pagos aprobados
       if (type === 'payment') {
@@ -93,11 +93,27 @@ export default async function paymentRoutes(fastify) {
         // Obtener info completa del pago
         const payment = await paymentClient.get({ id: paymentId });
 
-        fastify.log.info({ paymentId, status: payment.status }, "Payment info retrieved");
+        fastify.log.info({ 
+          paymentId, 
+          status: payment.status,
+          metadata: payment.metadata,
+          payer: payment.payer?.email
+        }, "Payment info retrieved");
 
         if (payment.status === 'approved') {
           const portalId = payment.metadata.portal_id;
           const email = payment.metadata.email || payment.payer.email;
+
+          // Verificar si ya existe token para este pago
+          const [existing] = await fastify.mysql.query(
+            `SELECT token FROM unlock_tokens WHERE payment_reference = ? LIMIT 1`,
+            [paymentId.toString()]
+          );
+
+          if (existing.length > 0) {
+            fastify.log.info({ paymentId }, "Token already exists for this payment, skipping");
+            return reply.code(200).send({ received: true, existing: true });
+          }
 
           // Generar token único
           const token = crypto.randomBytes(16).toString('hex');
@@ -108,12 +124,12 @@ export default async function paymentRoutes(fastify) {
 
           // Guardar en base de datos
           await fastify.mysql.query(
-            `INSERT INTO unlock_tokens (portal_id, token, expires_at, payment_reference) 
-             VALUES (?, ?, ?, ?)`,
+            `INSERT INTO unlock_tokens (portal_id, token, expires_at, payment_reference, status) 
+             VALUES (?, ?, ?, ?, 'active')`,
             [portalId, token, expiresAt, paymentId.toString()]
           );
 
-          fastify.log.info({ portalId, token, paymentId }, "Unlock token created from payment");
+          fastify.log.info({ portalId, token, paymentId, email }, "✅ Unlock token created from payment");
 
           // TODO: Enviar email con token (implementar después)
           // await sendTokenEmail(email, token, portalId);
@@ -123,7 +139,11 @@ export default async function paymentRoutes(fastify) {
       return reply.code(200).send({ received: true });
 
     } catch (error) {
-      fastify.log.error({ err: error }, "Error processing webhook");
+      fastify.log.error({ 
+        err: error, 
+        message: error.message,
+        stack: error.stack 
+      }, "❌ Error processing webhook");
       // Siempre responder 200 a webhooks para no reintentarlos
       return reply.code(200).send({ received: true, error: error.message });
     }
@@ -136,11 +156,27 @@ export default async function paymentRoutes(fastify) {
   fastify.get("/api/payment/token-info", async (req, reply) => {
     const { payment_id } = req.query;
 
+    fastify.log.info({ payment_id }, "Token info requested");
+
     if (!payment_id) {
       return reply.code(400).send({ error: "Missing payment_id" });
     }
 
     try {
+      // Verificar si la tabla existe
+      try {
+        await fastify.mysql.query(`SELECT 1 FROM unlock_tokens LIMIT 1`);
+      } catch (tableError) {
+        if (tableError.code === 'ER_NO_SUCH_TABLE') {
+          fastify.log.error("unlock_tokens table doesn't exist. Run migration 002!");
+          return reply.code(500).send({
+            error: "Database not initialized",
+            message: "Por favor contacta a soporte. (DB table missing)"
+          });
+        }
+        throw tableError;
+      }
+
       // Buscar token por payment_id
       const [rows] = await fastify.mysql.query(
         `SELECT token, portal_id, expires_at, created_at 
@@ -150,18 +186,28 @@ export default async function paymentRoutes(fastify) {
         [payment_id]
       );
 
+      fastify.log.info({ payment_id, found: rows.length > 0 }, "Token search result");
+
       if (rows.length === 0) {
         return reply.code(404).send({
           error: "Token not found",
-          message: "El token aún no ha sido generado. Espera unos segundos y recarga."
+          message: "El token aún no ha sido generado. Espera unos segundos y recarga.",
+          debug: { payment_id }
         });
       }
 
       const tokenData = rows[0];
 
       // Obtener email del pago
-      const payment = await paymentClient.get({ id: payment_id });
-      const email = payment.metadata?.email || payment.payer?.email || '';
+      let email = '';
+      try {
+        const payment = await paymentClient.get({ id: payment_id });
+        email = payment.metadata?.email || payment.payer?.email || '';
+        fastify.log.info({ payment_id, email }, "Payment email retrieved");
+      } catch (mpError) {
+        fastify.log.warn({ err: mpError, payment_id }, "Could not get payment from MercadoPago");
+        // Continuar sin email, no es crítico
+      }
 
       return reply.send({
         token: tokenData.token,
@@ -171,10 +217,18 @@ export default async function paymentRoutes(fastify) {
       });
 
     } catch (error) {
-      fastify.log.error({ err: error, payment_id }, "Error getting token info");
+      fastify.log.error({ 
+        err: error, 
+        payment_id,
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      }, "❌ Error getting token info");
+      
       return reply.code(500).send({
         error: "Failed to get token",
-        message: error.message
+        message: error.message,
+        code: error.code
       });
     }
   });
