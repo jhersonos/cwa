@@ -141,41 +141,49 @@ function generateExecutiveSummary(summary, insights) {
 
 /**
  * Determina próximo paso recomendado según severidad de hallazgos
+ * Retorna un string simple para renderizar en frontend
  */
 function determineNextStep(summary, topRisks) {
+  // Identificar el riesgo más grave
+  const topRisk = topRisks[0];
+  const topRiskTitle = topRisk ? topRisk.title : '';
+  
   if (summary.critical >= 3) {
-    return {
-      action: "Auditoría profesional urgente",
-      reason: "Múltiples riesgos críticos detectados que afectan operación comercial y confiabilidad de reportes.",
-      timeframe: "Dentro de 7 días",
-      contactCTA: true
-    };
+    return `Auditoría profesional urgente: múltiples riesgos críticos detectados que afectan operación comercial y confiabilidad de reportes. Se recomienda revisión experta dentro de 7 días.`;
   }
   
-  if (summary.critical > 0 || summary.urgentCount >= 2) {
-    return {
-      action: "Revisión experta prioritaria",
-      reason: "Riesgos operativos detectados requieren evaluación profesional para diseñar plan de remediación.",
-      timeframe: "Dentro de 15 días",
-      contactCTA: true
-    };
+  if (summary.critical > 0) {
+    // Si hay un riesgo crítico específico, mencionarlo
+    if (topRiskTitle.includes('sin owner')) {
+      return `Corregir los deals sin owner y bloquear su creación sin propietario, ya que es el riesgo con mayor impacto inmediato en la operación comercial.`;
+    }
+    if (topRiskTitle.includes('sin contacto')) {
+      return `Asociar contactos a todos los deals huérfanos y bloquear creación de deals sin contacto, ya que esto bloquea completamente el seguimiento y nurturing automatizado.`;
+    }
+    if (topRiskTitle.includes('sin email')) {
+      return `Auditar fuentes de captación y validar email obligatorio en todos los formularios, ya que contactos sin email bloquean email marketing y automatización.`;
+    }
+    if (topRiskTitle.includes('sin lifecycle')) {
+      return `Implementar asignación automática de lifecycle stages en formularios y workflows, ya que esto invalida forecasting y reportes de pipeline.`;
+    }
+    if (topRiskTitle.includes('sin valor') || topRiskTitle.includes('sin precio')) {
+      return `Obligar captura de amount en creación de deals y crear workflows de recordatorio, ya que deals sin precio invalidan forecasting financiero.`;
+    }
+    
+    // Fallback genérico para critical
+    return `Revisión experta prioritaria: riesgos operativos críticos detectados requieren evaluación profesional para diseñar plan de remediación. Se recomienda actuar dentro de 15 días.`;
+  }
+  
+  if (summary.urgentCount >= 2) {
+    return `Revisión experta prioritaria: múltiples oportunidades urgentes de optimización detectadas que afectan eficiencia operativa. Se recomienda actuar dentro de 15 días.`;
   }
   
   if (summary.warning >= 3) {
-    return {
-      action: "Optimización guiada",
-      reason: "Oportunidades de mejora identificadas que pueden incrementar eficiencia y ROI.",
-      timeframe: "Próximo mes",
-      contactCTA: true
-    };
+    return `Optimización guiada: múltiples oportunidades de mejora identificadas que pueden incrementar eficiencia operativa y ROI en licencias de HubSpot. Se recomienda revisión experta próximo mes.`;
   }
 
-  return {
-    action: "Monitoreo trimestral",
-    reason: "Mantener revisiones periódicas para detectar regresiones tempranas.",
-    timeframe: "Cada 90 días",
-    contactCTA: false
-  };
+  // Sin riesgos críticos ni warnings importantes
+  return null; // No mostrar bloque de acción prioritaria
 }
 
 /**
