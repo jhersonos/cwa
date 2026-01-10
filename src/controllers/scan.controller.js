@@ -55,7 +55,9 @@ export async function runScanV3(req, reply) {
     ------------------------ */
     const efficiencyResult = calculateEfficiencyScore({
       contacts,
-      users
+      users,
+      deals,
+      companies
     });
 
     const efficiency = {
