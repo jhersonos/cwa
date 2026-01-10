@@ -157,6 +157,7 @@ export function generateInsights({ efficiency, contacts, users, deals, companies
     // Deals sin contacto - CRÍTICO
     if (deals.withoutContact && deals.withoutContact.count > 0) {
       const percentage = deals.withoutContact.percentage;
+      const volumeContext = deals.total < 20 ? ` Dado el bajo volumen de deals analizados, este porcentaje afecta prácticamente a todas las oportunidades activas.` : '';
       
       if (percentage > 15) {
         insights.push({
@@ -164,7 +165,7 @@ export function generateInsights({ efficiency, contacts, users, deals, companies
           severity: "critical",
           urgency: "alta",
           title: `${percentage}% de deals sin contacto (detectado en muestra de ${deals.total})`,
-          description: `Este patrón crítico detectado en la muestra indica que ${percentage}% de deals no tienen contacto asociado, creando deals huérfanos imposibles de gestionar efectivamente.`,
+          description: `Este patrón crítico detectado en la muestra indica que ${percentage}% de deals no tienen contacto asociado, creando deals huérfanos imposibles de gestionar efectivamente.${volumeContext}`,
           businessImpact: "Deals sin contacto bloquean comunicación, seguimiento y nurturing automatizado. Genera pérdida directa de oportunidades por falta de contexto del lead.",
           recommendation: "1) Bloquea creación de deals sin contacto mediante validaciones. 2) Crea workflow de alerta para deals huérfanos. 3) Audita deals existentes y asocia contactos manualmente.",
           relatedModule: "deals"
@@ -186,6 +187,7 @@ export function generateInsights({ efficiency, contacts, users, deals, companies
     // Deals sin owner - CRÍTICO
     if (deals.withoutOwner && deals.withoutOwner.count > 0) {
       const percentage = deals.withoutOwner.percentage;
+      const volumeContext = deals.total < 20 ? ` Dado el bajo volumen de deals analizados, este porcentaje afecta prácticamente a todas las oportunidades activas.` : '';
       
       if (percentage > 10) {
         insights.push({
@@ -193,7 +195,7 @@ export function generateInsights({ efficiency, contacts, users, deals, companies
           severity: "critical",
           urgency: "alta",
           title: `${deals.withoutOwner.count} deals sin owner asignado (${percentage}%)`,
-          description: `${percentage}% de deals no tienen propietario, destruyendo accountability y seguimiento comercial.`,
+          description: `${percentage}% de deals no tienen propietario, destruyendo accountability y seguimiento comercial.${volumeContext}`,
           businessImpact: "Deals sin owner se pierden en el limbo. Nadie hace seguimiento, nadie es responsable. Pérdida directa de ingresos por oportunidades abandonadas.",
           recommendation: "1) Asigna owners automáticamente mediante round-robin en formularios/workflows. 2) Audita deals sin owner semanalmente. 3) Implementa SLA de asignación (máximo 24h sin owner).",
           relatedModule: "deals"
@@ -215,6 +217,7 @@ export function generateInsights({ efficiency, contacts, users, deals, companies
     // Deals sin precio
     if (deals.withoutPrice && deals.withoutPrice.count > 0) {
       const percentage = deals.withoutPrice.percentage;
+      const volumeContext = deals.total < 20 ? ` Dado el bajo volumen de deals analizados, este porcentaje afecta prácticamente a todas las oportunidades activas.` : '';
       
       if (percentage > 20) {
         insights.push({
@@ -222,7 +225,7 @@ export function generateInsights({ efficiency, contacts, users, deals, companies
           severity: "critical",
           urgency: "media",
           title: `${deals.withoutPrice.count} deals sin valor monetario (${percentage}%)`,
-          description: `${percentage}% de deals no tienen amount definido, invalidando completamente forecasting y reporting financiero.`,
+          description: `${percentage}% de deals no tienen amount definido, invalidando completamente forecasting y reporting financiero.${volumeContext}`,
           businessImpact: "Forecasting inútil. Reportes de pipeline sin valor real. Imposibilita análisis de ROI y proyecciones de ingresos confiables.",
           recommendation: "1) Obliga captura de amount en creación de deals. 2) Crea workflow de recordatorio para deals sin precio después de 48h. 3) Entrena equipo en estimación de deal size.",
           relatedModule: "deals"

@@ -200,6 +200,9 @@
             let html = '';
             
             switch(type) {
+                case 'contacts-incomplete':
+                    html = renderContactsIncomplete(data);
+                    break;
                 case 'contacts-no-email-critical':
                 case 'contacts-no-email-warning':
                     html = renderContactsWithoutEmail(data);
@@ -260,6 +263,51 @@
             document.getElementById('content').innerHTML = html;
         }
 
+        function renderContactsIncomplete(data) {
+            const withoutEmail = data.contacts.withoutEmail;
+            const withoutPhone = data.contacts.withoutPhone;
+            const withoutLifecycle = data.contacts.withoutLifecycle;
+            const stale = data.contacts.stale;
+            const total = data.contacts.total;
+            
+            const totalIssues = withoutEmail + withoutPhone + withoutLifecycle;
+            
+            return `
+                <h1>Contactos con Datos Incompletos</h1>
+                <span class="severity-badge severity-warning">REVISIÓN REQUERIDA</span>
+                
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-value">${totalIssues}</div>
+                        <div class="stat-label">Registros con problemas detectados</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${total}</div>
+                        <div class="stat-label">Total contactos analizados</div>
+                    </div>
+                </div>
+                
+                <div class="summary">
+                    <p><strong>Desglose de problemas detectados en la muestra:</strong></p>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                        ${withoutEmail > 0 ? `<li><strong>${withoutEmail}</strong> sin email — Bloquea email marketing y nurturing automatizado</li>` : ''}
+                        ${withoutPhone > 0 ? `<li><strong>${withoutPhone}</strong> sin teléfono — Limita prospección telefónica por SDR/BDR</li>` : ''}
+                        ${withoutLifecycle > 0 ? `<li><strong>${withoutLifecycle}</strong> sin lifecycle stage — Invalida forecasting y reportes de funnel</li>` : ''}
+                        ${stale > 0 ? `<li><strong>${stale}</strong> obsoletos (>6 meses) — Reduce deliverability y consume almacenamiento</li>` : ''}
+                    </ul>
+                    <p style="margin-top: 15px; padding: 10px; background: #fff7ed; border-left: 3px solid #f59e0b; font-style: italic;">
+                        💡 Este patrón fue detectado en la muestra analizada y suele repetirse en el resto de la cuenta.
+                    </p>
+                </div>
+                
+                <p style="margin-top: 20px;">
+                    <a href="https://app.hubspot.com/contacts/${portalId}/objects/0-1/views/all/list" class="hubspot-link" target="_blank">
+                        → Ver todos los contactos en HubSpot
+                    </a>
+                </p>
+            `;
+        }
+
         function renderContactsWithoutEmail(data) {
             const count = data.contacts.withoutEmail;
             const total = data.contacts.total;
@@ -287,7 +335,9 @@
                 <div class="summary">
                     <p><strong>Impacto:</strong> Bloquea campañas de email, workflows automatizados y reduce oportunidades de conversión.</p>
                     <p><strong>Recomendación:</strong> Implementa formularios con email obligatorio y considera enriquecimiento de datos.</p>
-                    <p><strong>Nota:</strong> Este análisis se basa en una muestra de hasta 500 contactos. El problema puede ser más amplio en tu base de datos completa.</p>
+                    <p style="margin-top: 15px; padding: 10px; background: #fff7ed; border-left: 3px solid #f59e0b; font-style: italic;">
+                        💡 Este patrón fue detectado en la muestra analizada y suele repetirse en el resto de la cuenta.
+                    </p>
                 </div>
                 
                 <p style="margin-top: 20px;">
@@ -422,6 +472,9 @@
                 <div class="summary">
                     <p><strong>Impacto:</strong> Deals huérfanos imposibles de gestionar. Bloquea comunicación y seguimiento automatizado.</p>
                     <p><strong>Recomendación:</strong> Bloquea creación de deals sin contacto y crea workflow de alerta para deals huérfanos.</p>
+                    <p style="margin-top: 15px; padding: 10px; background: #fff7ed; border-left: 3px solid #f59e0b; font-style: italic;">
+                        💡 Este patrón fue detectado en la muestra analizada y suele repetirse en el resto de la cuenta.
+                    </p>
                 </div>
                 
                 ${deals.items && deals.items.length > 0 ? `
@@ -482,6 +535,9 @@
                 <div class="summary">
                     <p><strong>Impacto:</strong> Destruye accountability. Deals sin owner se pierden en el limbo - nadie hace seguimiento.</p>
                     <p><strong>Recomendación:</strong> Asigna owners automáticamente mediante round-robin e implementa SLA de asignación máximo 24h.</p>
+                    <p style="margin-top: 15px; padding: 10px; background: #fff7ed; border-left: 3px solid #f59e0b; font-style: italic;">
+                        💡 Este patrón fue detectado en la muestra analizada y suele repetirse en el resto de la cuenta.
+                    </p>
                 </div>
                 
                 ${deals.items && deals.items.length > 0 ? `
@@ -542,6 +598,9 @@
                 <div class="summary">
                     <p><strong>Impacto:</strong> Forecasting inútil. Reportes de pipeline sin valor real. Imposibilita análisis de ROI.</p>
                     <p><strong>Recomendación:</strong> Obliga captura de amount en creación de deals y crea workflow de recordatorio.</p>
+                    <p style="margin-top: 15px; padding: 10px; background: #fff7ed; border-left: 3px solid #f59e0b; font-style: italic;">
+                        💡 Este patrón fue detectado en la muestra analizada y suele repetirse en el resto de la cuenta.
+                    </p>
                 </div>
                 
                 ${deals.items && deals.items.length > 0 ? `
