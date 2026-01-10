@@ -85,13 +85,15 @@ export async function checkUnlockStatus(fastify, portalId) {
     if (rows.length === 0) {
       return {
         unlocked: false,
-        expiresAt: null
+        expiresAt: null,
+        token: null
       };
     }
 
     return {
       unlocked: true,
-      expiresAt: rows[0].expires_at
+      expiresAt: rows[0].expires_at,
+      token: rows[0].token // Devolver token para uso automático en frontend
     };
   } catch (error) {
     // NO bloquear la app si hay error de unlock
