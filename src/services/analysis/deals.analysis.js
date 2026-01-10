@@ -43,7 +43,7 @@ export async function analyzeDeals(fastify, portalId, token) {
           Authorization: `Bearer ${token}`
         },
         params: {
-          limit: 50, // 🚀 Reducido de 100 a 50 para velocidad
+          limit: 50,
           properties: [
             "dealname",
             "dealstage",
@@ -54,7 +54,7 @@ export async function analyzeDeals(fastify, portalId, token) {
             "pipeline"
           ].join(",")
         },
-        timeout: 4000 // 🚀 Reducido de 8000ms a 4000ms
+        timeout: 2500 // 🚀 Velocidad máxima
       }
     );
 
@@ -124,7 +124,7 @@ export async function analyzeDeals(fastify, portalId, token) {
           headers: {
             Authorization: `Bearer ${token}`
           },
-          timeout: 6000
+          timeout: 2500
         }
       );
 
@@ -211,8 +211,8 @@ export async function analyzeDeals(fastify, portalId, token) {
   let totalActivities = 0;
   let dealsWithActivities = 0;
 
-  // Fetch actividades para una muestra de deals (primeros 20)
-  const sampleSize = Math.min(20, totalDeals);
+  // Fetch actividades para una muestra de deals (primeros 10)
+  const sampleSize = Math.min(10, totalDeals);
   for (let i = 0; i < sampleSize; i++) {
     try {
       const activitiesRes = await axios.get(
@@ -221,7 +221,7 @@ export async function analyzeDeals(fastify, portalId, token) {
           headers: {
             Authorization: `Bearer ${token}`
           },
-          timeout: 3000
+          timeout: 2500
         }
       );
 

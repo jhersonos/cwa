@@ -16,11 +16,11 @@ export async function fetchAllContacts(
   token,
   options = {}
 ) {
-  const LIMIT = options.limit || 200; // 🚀 Reducido de 500 a 200 para velocidad
+  const LIMIT = options.limit || 100; // 🚀 Máximo 100 contactos para velocidad extrema
 
   const contacts = [];
   let after = undefined;
-  const MAX_PAGES = 3; // 🚀 Máximo 3 páginas (300 contactos)
+  const MAX_PAGES = 1; // 🚀 Solo 1 página para máxima velocidad
   let pageCount = 0;
 
   try {
@@ -47,7 +47,7 @@ export async function fetchAllContacts(
               "lastname"
             ].join(",")
           },
-          timeout: 4000 // 🚀 Reducido de 8000ms a 4000ms
+          timeout: 2500 // 🚀 Reducido para velocidad máxima
         }
       );
 
