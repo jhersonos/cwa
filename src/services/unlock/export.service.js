@@ -3,9 +3,9 @@
  * Genera exportaciones CSV de auditoría completa
  */
 
-import { fetchContacts } from "../hubspot/contacts.service.js";
-import { fetchDeals } from "../hubspot/deals.service.js";
-import { fetchCompanies } from "../hubspot/companies.service.js";
+import axios from "axios";
+
+const HUBSPOT_API = "https://api.hubapi.com";
 
 /**
  * Genera CSV completo de resumen de auditoría
@@ -99,7 +99,17 @@ export async function generateAuditSummaryCSV(scanData, portalId) {
  */
 export async function generateDealsWithoutOwnerCSV(fastify, portalId, token) {
   try {
-    const deals = await fetchDeals(fastify, portalId, token, { limit: 1000 });
+    // Fetch directo con axios (igual que en deals.analysis.js)
+    const res = await axios.get(`${HUBSPOT_API}/crm/v3/objects/deals`, {
+      headers: { Authorization: `Bearer ${token}` },
+      params: {
+        limit: 100,
+        properties: ["dealname", "dealstage", "amount", "hubspot_owner_id", "closedate"].join(",")
+      },
+      timeout: 5000
+    });
+    
+    const deals = res.data?.results || [];
     const dealsWithoutOwner = deals.filter(d => !d.properties.hubspot_owner_id);
     
     const lines = [];
@@ -167,7 +177,17 @@ export async function generateDealsWithoutAmountCSV(fastify, portalId, token, de
  */
 export async function generateContactsWithoutEmailCSV(fastify, portalId, token) {
   try {
-    const contacts = await fetchContacts(fastify, portalId, token, { limit: 1000 });
+    // Fetch directo con axios
+    const res = await axios.get(`${HUBSPOT_API}/crm/v3/objects/contacts`, {
+      headers: { Authorization: `Bearer ${token}` },
+      params: {
+        limit: 100,
+        properties: ["email", "firstname", "lastname", "phone", "mobilephone", "lifecyclestage"].join(",")
+      },
+      timeout: 5000
+    });
+    
+    const contacts = res.data?.results || [];
     const contactsWithoutEmail = contacts.filter(c => !c.properties.email);
     
     const lines = [];
@@ -194,7 +214,17 @@ export async function generateContactsWithoutEmailCSV(fastify, portalId, token) 
  */
 export async function generateCompaniesWithoutPhoneCSV(fastify, portalId, token) {
   try {
-    const companies = await fetchCompanies(fastify, portalId, token, { limit: 1000 });
+    // Fetch directo con axios
+    const res = await axios.get(`${HUBSPOT_API}/crm/v3/objects/companies`, {
+      headers: { Authorization: `Bearer ${token}` },
+      params: {
+        limit: 100,
+        properties: ["name", "domain", "phone", "hubspot_owner_id"].join(",")
+      },
+      timeout: 5000
+    });
+    
+    const companies = res.data?.results || [];
     const companiesWithoutPhone = companies.filter(c => !c.properties.phone);
     
     const lines = [];
