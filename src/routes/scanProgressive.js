@@ -64,23 +64,35 @@ export default async function scanProgressiveRoutes(fastify) {
   ---------------------------------- */
   fastify.get("/api/scan-progressive/users", async (req, reply) => {
     const { portalId } = req.query;
+    const start = Date.now();
     
     if (!portalId) {
       return reply.code(400).send({ error: "Missing portalId" });
     }
 
     try {
+      req.server.log.info({ portalId }, "Starting users analysis");
+      
+      const authStart = Date.now();
       const token = await getValidAccessToken(req.server, portalId);
+      req.server.log.info({ durationMs: Date.now() - authStart }, "Auth completed");
+      
+      const analysisStart = Date.now();
       const users = await analyzeUsers(req.server, portalId, token);
+      req.server.log.info({ durationMs: Date.now() - analysisStart }, "Users analysis completed");
+      
+      const totalDuration = Date.now() - start;
+      req.server.log.info({ totalDurationMs: totalDuration }, "Users endpoint finished");
       
       return {
         step: "users",
         progress: 40,
         data: users,
-        trafficLight: getTrafficLightStatus(users.score)
+        trafficLight: getTrafficLightStatus(users.score),
+        meta: { durationMs: totalDuration }
       };
     } catch (err) {
-      req.server.log.error({ err, portalId }, "Users analysis failed");
+      req.server.log.error({ err, portalId, durationMs: Date.now() - start }, "Users analysis failed");
       return reply.code(500).send({ 
         error: "Users analysis failed", 
         message: err.message 
@@ -93,14 +105,22 @@ export default async function scanProgressiveRoutes(fastify) {
   ---------------------------------- */
   fastify.get("/api/scan-progressive/deals", async (req, reply) => {
     const { portalId } = req.query;
+    const start = Date.now();
     
     if (!portalId) {
       return reply.code(400).send({ error: "Missing portalId" });
     }
 
     try {
+      req.server.log.info({ portalId }, "Starting deals analysis");
+      
+      const authStart = Date.now();
       const token = await getValidAccessToken(req.server, portalId);
+      req.server.log.info({ durationMs: Date.now() - authStart }, "Auth completed");
+      
+      const analysisStart = Date.now();
       const deals = await analyzeDeals(req.server, portalId, token);
+      req.server.log.info({ durationMs: Date.now() - analysisStart }, "Deals analysis completed");
       
       // Calcular score promedio de deals
       const dealScores = [];
@@ -113,14 +133,18 @@ export default async function scanProgressiveRoutes(fastify) {
         ? Math.round(dealScores.reduce((a, b) => a + b, 0) / dealScores.length)
         : 100;
       
+      const totalDuration = Date.now() - start;
+      req.server.log.info({ totalDurationMs: totalDuration }, "Deals endpoint finished");
+      
       return {
         step: "deals",
         progress: 60,
         data: deals,
-        trafficLight: getTrafficLightStatus(dealsScore)
+        trafficLight: getTrafficLightStatus(dealsScore),
+        meta: { durationMs: totalDuration }
       };
     } catch (err) {
-      req.server.log.error({ err, portalId }, "Deals analysis failed");
+      req.server.log.error({ err, portalId, durationMs: Date.now() - start }, "Deals analysis failed");
       return reply.code(500).send({ 
         error: "Deals analysis failed", 
         message: err.message 
@@ -133,14 +157,22 @@ export default async function scanProgressiveRoutes(fastify) {
   ---------------------------------- */
   fastify.get("/api/scan-progressive/companies", async (req, reply) => {
     const { portalId } = req.query;
+    const start = Date.now();
     
     if (!portalId) {
       return reply.code(400).send({ error: "Missing portalId" });
     }
 
     try {
+      req.server.log.info({ portalId }, "Starting companies analysis");
+      
+      const authStart = Date.now();
       const token = await getValidAccessToken(req.server, portalId);
+      req.server.log.info({ durationMs: Date.now() - authStart }, "Auth completed");
+      
+      const analysisStart = Date.now();
       const companies = await analyzeCompanies(req.server, portalId, token);
+      req.server.log.info({ durationMs: Date.now() - analysisStart }, "Companies analysis completed");
       
       // Calcular score promedio de companies
       const companyScores = [];
@@ -153,14 +185,18 @@ export default async function scanProgressiveRoutes(fastify) {
         ? Math.round(companyScores.reduce((a, b) => a + b, 0) / companyScores.length)
         : 100;
       
+      const totalDuration = Date.now() - start;
+      req.server.log.info({ totalDurationMs: totalDuration }, "Companies endpoint finished");
+      
       return {
         step: "companies",
         progress: 80,
         data: companies,
-        trafficLight: getTrafficLightStatus(companiesScore)
+        trafficLight: getTrafficLightStatus(companiesScore),
+        meta: { durationMs: totalDuration }
       };
     } catch (err) {
-      req.server.log.error({ err, portalId }, "Companies analysis failed");
+      req.server.log.error({ err, portalId, durationMs: Date.now() - start }, "Companies analysis failed");
       return reply.code(500).send({ 
         error: "Companies analysis failed", 
         message: err.message 
@@ -173,22 +209,34 @@ export default async function scanProgressiveRoutes(fastify) {
   ---------------------------------- */
   fastify.get("/api/scan-progressive/tools", async (req, reply) => {
     const { portalId } = req.query;
+    const start = Date.now();
     
     if (!portalId) {
       return reply.code(400).send({ error: "Missing portalId" });
     }
 
     try {
+      req.server.log.info({ portalId }, "Starting tools analysis");
+      
+      const authStart = Date.now();
       const token = await getValidAccessToken(req.server, portalId);
+      req.server.log.info({ durationMs: Date.now() - authStart }, "Auth completed");
+      
+      const analysisStart = Date.now();
       const tools = await analyzeToolsUsage(req.server, portalId, token);
+      req.server.log.info({ durationMs: Date.now() - analysisStart }, "Tools analysis completed");
+      
+      const totalDuration = Date.now() - start;
+      req.server.log.info({ totalDurationMs: totalDuration }, "Tools endpoint finished");
       
       return {
         step: "tools",
         progress: 90,
-        data: tools
+        data: tools,
+        meta: { durationMs: totalDuration }
       };
     } catch (err) {
-      req.server.log.error({ err, portalId }, "Tools analysis failed");
+      req.server.log.error({ err, portalId, durationMs: Date.now() - start }, "Tools analysis failed");
       return reply.code(500).send({ 
         error: "Tools analysis failed", 
         message: err.message 
@@ -200,13 +248,28 @@ export default async function scanProgressiveRoutes(fastify) {
      ENDPOINT 6: FINALIZAR (Insights + Prioritization)
   ---------------------------------- */
   fastify.post("/api/scan-progressive/finalize", async (req, reply) => {
+    const start = Date.now();
     const { portalId, contacts, users, deals, companies, tools } = req.body;
+    
+    req.server.log.info({ portalId }, "Starting finalize");
     
     if (!portalId) {
       return reply.code(400).send({ error: "Missing portalId" });
     }
 
     try {
+      // Validar datos recibidos
+      if (!contacts || !users || !deals || !companies || !tools) {
+        throw new Error("Missing required data: " + JSON.stringify({
+          hasContacts: !!contacts,
+          hasUsers: !!users,
+          hasDeals: !!deals,
+          hasCompanies: !!companies,
+          hasTools: !!tools
+        }));
+      }
+
+      req.server.log.info("Calculating efficiency score");
       // Calcular efficiency score
       const efficiencyResult = calculateEfficiencyScore({
         contacts,
@@ -222,6 +285,7 @@ export default async function scanProgressiveRoutes(fastify) {
         breakdown: efficiencyResult.breakdown
       };
 
+      req.server.log.info("Calculating traffic lights");
       // Calcular traffic lights
       const trafficLights = {
         contacts: getTrafficLightStatus(contacts.score),
@@ -230,6 +294,7 @@ export default async function scanProgressiveRoutes(fastify) {
         companies: getTrafficLightStatus(efficiencyResult.breakdown.companies)
       };
 
+      req.server.log.info("Generating insights");
       // Generar insights
       const insights = generateInsights({
         efficiency,
@@ -241,6 +306,7 @@ export default async function scanProgressiveRoutes(fastify) {
         trafficLights
       });
 
+      req.server.log.info("Generating prioritization");
       // Generar priorización
       const prioritization = generatePrioritization(
         insights,
@@ -248,19 +314,31 @@ export default async function scanProgressiveRoutes(fastify) {
         trafficLights
       );
 
+      const totalDuration = Date.now() - start;
+      req.server.log.info({ totalDurationMs: totalDuration }, "Finalize completed");
+
       return {
         step: "complete",
         progress: 100,
         efficiency,
         trafficLights,
         insights,
-        prioritization
+        prioritization,
+        meta: { durationMs: totalDuration }
       };
     } catch (err) {
-      req.server.log.error({ err, portalId }, "Finalize failed");
+      req.server.log.error({ 
+        err, 
+        portalId, 
+        errorMessage: err.message,
+        errorStack: err.stack,
+        durationMs: Date.now() - start 
+      }, "Finalize failed");
+      
       return reply.code(500).send({ 
         error: "Finalize failed", 
-        message: err.message 
+        message: err.message,
+        details: err.stack
       });
     }
   });
