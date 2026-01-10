@@ -250,15 +250,28 @@ export default async function scanProgressiveRoutes(fastify) {
   fastify.post("/api/scan-progressive/finalize", async (req, reply) => {
     const start = Date.now();
     
+    // ⚠️ WORKAROUND: Si el body es un array (parsing incorrecto), re-parsear
+    let bodyData = req.body;
+    if (Array.isArray(req.body)) {
+      try {
+        const bodyString = req.body.join('');
+        bodyData = JSON.parse(bodyString);
+        req.server.log.info({ originalType: 'array', parsedKeys: Object.keys(bodyData).length }, "Re-parsed body from array");
+      } catch (err) {
+        req.server.log.error({ err }, "Failed to re-parse body array");
+      }
+    }
+    
     // HubSpot puede enviar portalId como query param
-    const portalId = req.body?.portalId || req.query?.portalId;
-    const { contacts, users, deals, companies, tools } = req.body || {};
+    const portalId = bodyData?.portalId || req.query?.portalId;
+    const { contacts, users, deals, companies, tools } = bodyData || {};
     
     req.server.log.info({ 
       portalId, 
-      hasBody: !!req.body,
+      hasBody: !!bodyData,
       hasQuery: !!req.query,
-      bodyKeys: req.body ? Object.keys(req.body) : [],
+      bodyType: Array.isArray(req.body) ? 'array' : typeof req.body,
+      bodyKeys: bodyData ? Object.keys(bodyData).slice(0, 5) : [],
       queryKeys: req.query ? Object.keys(req.query) : []
     }, "Starting finalize");
     
