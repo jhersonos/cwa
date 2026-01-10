@@ -16,7 +16,7 @@ export async function analyzeContacts(fastify, portalId, token) {
   try {
     // 🔒 Sample controlado para evitar timeouts
     contacts = await fetchAllContacts(fastify, portalId, token, {
-      limit: 500
+      limit: 200 // 🚀 Reducido para velocidad (análisis representativo)
     });
 
     if (!Array.isArray(contacts)) {

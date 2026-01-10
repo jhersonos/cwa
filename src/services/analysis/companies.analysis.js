@@ -43,7 +43,7 @@ export async function analyzeCompanies(fastify, portalId, token) {
           Authorization: `Bearer ${token}`
         },
         params: {
-          limit: 100,
+          limit: 50, // 🚀 Reducido de 100 a 50 para velocidad
           properties: [
             "name",
             "domain",
@@ -53,7 +53,7 @@ export async function analyzeCompanies(fastify, portalId, token) {
             "industry"
           ].join(",")
         },
-        timeout: 8000
+        timeout: 4000 // 🚀 Reducido de 8000ms a 4000ms
       }
     );
 

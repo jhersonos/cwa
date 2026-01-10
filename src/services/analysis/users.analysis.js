@@ -19,7 +19,7 @@ export async function analyzeUsers(fastify, portalId, token) {
         headers: {
           Authorization: `Bearer ${token}`
         },
-        timeout: 8000
+        timeout: 4000 // 🚀 Reducido de 8000ms a 4000ms
       }
     );
 
