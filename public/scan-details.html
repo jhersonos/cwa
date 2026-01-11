@@ -179,26 +179,36 @@
 
         async function loadDetails() {
             try {
+                console.log('🔍 Cargando detalles para:', { type, portalId });
+                
                 // Usar URL completa
                 const response = await fetch(`https://cwa.estado7.com/api/scan-v3?portalId=${portalId}`);
                 
                 if (!response.ok) {
-                    throw new Error('Error al cargar datos');
+                    throw new Error(`Error al cargar datos: ${response.status} ${response.statusText}`);
                 }
                 
                 const data = await response.json();
+                console.log('✅ Datos recibidos:', data);
+                
                 const html = await renderDetails(type, data);
+                console.log('✅ HTML renderizado, longitud:', html ? html.length : 0);
                 
                 // Verificar que html no sea undefined o vacío
                 if (!html || html === 'undefined') {
-                    throw new Error('No se pudieron renderizar los detalles');
+                    console.error('❌ HTML inválido:', html);
+                    throw new Error(`No se pudieron renderizar los detalles para tipo: ${type}`);
                 }
                 
                 document.getElementById('content').innerHTML = html;
+                console.log('✅ Contenido mostrado exitosamente');
             } catch (error) {
+                console.error('❌ Error en loadDetails:', error);
                 document.getElementById('content').innerHTML = `
                     <div class="error">
                         <strong>Error:</strong> ${error.message || 'Error desconocido'}
+                        <br><br>
+                        <small>Tipo: ${type}<br>Portal ID: ${portalId}</small>
                     </div>
                 `;
             }
@@ -268,7 +278,8 @@
                     `;
             }
             
-            document.getElementById('content').innerHTML = html;
+            // IMPORTANTE: Devolver el HTML en lugar de asignarlo directamente
+            return html;
         }
 
         async function renderContactsIncomplete(data) {
