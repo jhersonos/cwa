@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import path from "path";
 import { fileURLToPath } from "url";
+import { readFileSync } from "fs";
 import db from "./plugins/db.js";
 import oauthRoutes from "./routes/oauth.js";
 import scanRoutes from "./routes/scan.js";
@@ -63,6 +64,18 @@ export default async function buildApp() {
       status: "ok",
       app: "Cost Waste Analyzer"
     };
+  });
+
+  // Ruta específica para página de descarga
+  app.get("/downloading.html", async (req, reply) => {
+    try {
+      const htmlPath = path.join(__dirname, '../public/downloading.html');
+      const html = readFileSync(htmlPath, 'utf-8');
+      reply.type('text/html').send(html);
+    } catch (error) {
+      app.log.error({ err: error }, "Error serving downloading.html");
+      reply.code(500).send({ error: "Failed to load download page" });
+    }
   });
 
   return app;
