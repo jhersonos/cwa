@@ -271,6 +271,10 @@
                 case 'users-inactive-warning':
                     html = renderInactiveUsers(data);
                     break;
+                case 'tools-critical-unused':
+                case 'tools-warning-unused':
+                    html = renderToolsUnused(data);
+                    break;
                 default:
                     html = `
                         <h1>Detalle no disponible</h1>
@@ -929,6 +933,73 @@
                 <p style="margin-top: 20px;">
                     <a href="https://app.hubspot.com/settings/${portalId}/users" class="hubspot-link" target="_blank">
                         → Ver usuarios en HubSpot
+                    </a>
+                </p>
+            `;
+        }
+
+        function renderToolsUnused(data) {
+            const tools = data.tools || {};
+            const totalTools = (tools.inUse?.length || 0) + (tools.notInUse?.length || 0);
+            const unusedCount = tools.notInUse?.length || 0;
+            const unusedPercentage = totalTools > 0 ? ((unusedCount / totalTools) * 100).toFixed(1) : 0;
+            
+            return `
+                <h1>Herramientas de HubSpot sin Usar</h1>
+                <span class="severity-badge severity-critical">CRÍTICO</span>
+                
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-value">${unusedCount}</div>
+                        <div class="stat-label">Herramientas sin usar</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${totalTools}</div>
+                        <div class="stat-label">Total disponibles</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${unusedPercentage}%</div>
+                        <div class="stat-label">Porcentaje sin usar</div>
+                    </div>
+                </div>
+                
+                <div class="summary">
+                    <p><strong>⚠️ Micro-contexto de muestreo:</strong> Este análisis detecta herramientas críticas de HubSpot que no están siendo utilizadas en tu cuenta.</p>
+                    <p><strong>Impacto en negocio:</strong> Estás pagando por funcionalidades que no aprovechas. Workflows, forms, landing pages y otras herramientas sin usar representan oportunidades de automatización y generación de leads desaprovechadas.</p>
+                    <p><strong>Recomendación:</strong></p>
+                    <ul style="margin-left: 20px; line-height: 1.8;">
+                        <li>Audita qué herramientas tienes disponibles vs. cuáles usas activamente</li>
+                        <li>Evalúa si necesitas capacitación para aprovechar estas herramientas</li>
+                        <li>Considera downgrade de plan si no usas herramientas premium</li>
+                        <li>Implementa workflows para automatizar procesos manuales</li>
+                    </ul>
+                </div>
+                
+                ${unusedCount > 0 ? `
+                    <h2 style="margin-top: 30px; margin-bottom: 15px;">🔴 Herramientas sin usar detectadas:</h2>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;">
+                        ${tools.notInUse.map(tool => `
+                            <div style="padding: 8px 16px; background: #fee; border: 1px solid #fcc; border-radius: 6px; font-weight: 500;">
+                                ${tool.tool}
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+                
+                ${tools.inUse?.length > 0 ? `
+                    <h2 style="margin-top: 30px; margin-bottom: 15px;">✅ Herramientas en uso:</h2>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                        ${tools.inUse.map(tool => `
+                            <div style="padding: 8px 16px; background: #efe; border: 1px solid #cfc; border-radius: 6px; font-weight: 500;">
+                                ${tool.tool}
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+                
+                <p style="margin-top: 30px;">
+                    <a href="https://app.hubspot.com/settings/${portalId}" class="hubspot-link" target="_blank">
+                        → Ver configuración de herramientas en HubSpot
                     </a>
                 </p>
             `;

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Descargando Auditoría Completa - Cost CRM Risk Scanner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #0091AE 0%, #006A7D 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: bounce 2s infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+        
+        h1 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+        
+        .subtitle {
+            font-size: 20px;
+            margin-bottom: 30px;
+            opacity: 0.95;
+            font-weight: 500;
+        }
+        
+        .report-name {
+            background: rgba(255,255,255,0.2);
+            padding: 15px 25px;
+            border-radius: 10px;
+            margin: 30px 0;
+            font-size: 18px;
+            font-weight: 600;
+            backdrop-filter: blur(10px);
+        }
+        
+        .features {
+            background: rgba(255,255,255,0.15);
+            padding: 30px;
+            border-radius: 15px;
+            margin: 30px 0;
+            text-align: left;
+            backdrop-filter: blur(10px);
+        }
+        
+        .features h2 {
+            font-size: 22px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+            margin: 15px 0;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        
+        .feature-item .icon-small {
+            font-size: 24px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        
+        .loading-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 30px 0;
+        }
+        
+        .loading-progress {
+            height: 100%;
+            background: white;
+            width: 0%;
+            animation: loading 2s ease-in-out forwards;
+        }
+        
+        @keyframes loading {
+            0% { width: 0%; }
+            100% { width: 100%; }
+        }
+        
+        .status {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-top: 20px;
+        }
+        
+        .cta {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        .cta p {
+            font-size: 16px;
+            margin-bottom: 15px;
+            opacity: 0.95;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 15px 35px;
+            background: white;
+            color: #0091AE;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 16px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+        
+        .powered-by {
+            margin-top: 40px;
+            font-size: 14px;
+            opacity: 0.8;
+        }
+        
+        .powered-by a {
+            color: white;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">📥</div>
+        
+        <h1>¡Descarga en Progreso!</h1>
+        
+        <p class="subtitle">
+            Estamos preparando tu auditoría completa con todos los detalles...
+        </p>
+        
+        <div class="report-name" id="reportName">
+            📊 Generando reporte...
+        </div>
+        
+        <div class="loading-bar">
+            <div class="loading-progress"></div>
+        </div>
+        
+        <p class="status">
+            ⏱️ Esto puede tardar unos segundos...
+        </p>
+        
+        <div class="features">
+            <h2>✨ Tu reporte incluye:</h2>
+            
+            <div class="feature-item">
+                <span class="icon-small">📊</span>
+                <span><strong>Datos completos exportables</strong> - Todos los registros con problemas detectados, listos para acción inmediata.</span>
+            </div>
+            
+            <div class="feature-item">
+                <span class="icon-small">🔗</span>
+                <span><strong>URLs directas a HubSpot</strong> - Click y ve directo al registro para corregirlo. Sin búsquedas manuales.</span>
+            </div>
+            
+            <div class="feature-item">
+                <span class="icon-small">📈</span>
+                <span><strong>Formato Excel profesional</strong> - Columnas organizadas, filtrable, compartible con tu equipo.</span>
+            </div>
+            
+            <div class="feature-item">
+                <span class="icon-small">⚡</span>
+                <span><strong>Listo para ejecutar</strong> - No más análisis manual. Identifica, prioriza y resuelve en minutos.</span>
+            </div>
+        </div>
+        
+        <div class="cta">
+            <p>¿Necesitas ayuda implementando las correcciones?</p>
+            <a href="https://estado7.com/contact?source=cost-waste-analyzer-download" class="btn" target="_blank">
+                🚀 Solicitar Consultoría Gratuita
+            </a>
+        </div>
+        
+        <div class="powered-by">
+            Con la tecnología de <a href="https://estado7.com" target="_blank">Estado 7</a> - Especialistas en HubSpot
+        </div>
+    </div>
+    
+    <script>
+        // Obtener parámetros de URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const reportType = urlParams.get('reportType');
+        const portalId = urlParams.get('portalId');
+        const token = urlParams.get('token');
+        
+        // Mapear tipo de reporte a nombre legible
+        const reportNames = {
+            'audit-summary': '📊 Resumen Completo de Auditoría',
+            'deals-without-owner': '📌 Deals Sin Owner Asignado',
+            'deals-without-contact': '👤 Deals Sin Contacto Asociado',
+            'deals-without-amount': '💰 Deals Sin Valor Monetario',
+            'contacts-without-email': '✉️ Contactos Sin Email',
+            'companies-without-phone': '📞 Empresas Sin Teléfono'
+        };
+        
+        // Mostrar nombre del reporte
+        const reportNameEl = document.getElementById('reportName');
+        if (reportType && reportNames[reportType]) {
+            reportNameEl.textContent = reportNames[reportType];
+        }
+        
+        // Iniciar descarga automáticamente
+        if (reportType && portalId && token) {
+            // Crear iframe oculto para iniciar descarga sin redirigir
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = `https://cwa.estado7.com/api/unlock/download/${reportType}?portalId=${portalId}&token=${token}`;
+            document.body.appendChild(iframe);
+            
+            // Después de 3 segundos, mostrar mensaje de éxito
+            setTimeout(() => {
+                document.querySelector('.loading-bar').innerHTML = '<div style="height: 100%; background: #10b981; width: 100%;"></div>';
+                document.querySelector('.status').innerHTML = '✅ <strong>¡Descarga completada!</strong> Revisa tu carpeta de descargas.';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
+
