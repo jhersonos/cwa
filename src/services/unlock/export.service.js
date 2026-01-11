@@ -1,248 +1,439 @@
 /**
  * EXPORT SERVICE
- * Genera exportaciones CSV de auditoría completa
+ * Genera exportaciones XLSX de auditoría completa
  */
 
 import axios from "axios";
+import XLSX from "xlsx";
 
 const HUBSPOT_API = "https://api.hubapi.com";
 
 /**
- * Genera CSV completo de resumen de auditoría
+ * Fetch con paginación para traer TODOS los registros
  */
-export async function generateAuditSummaryCSV(scanData, portalId) {
-  const { efficiency, contacts, users, deals, companies, insights, trafficLights } = scanData;
+async function fetchAllRecords(endpoint, token, properties, filterFn = null) {
+  const allRecords = [];
+  let after = null;
+  let hasMore = true;
+  const limit = 100;
+  
+  while (hasMore && allRecords.length < 10000) { // Límite de seguridad: 10k registros
+    try {
+      const params = {
+        limit,
+        properties: properties.join(",")
+      };
+      
+      if (after) {
+        params.after = after;
+      }
+      
+      const res = await axios.get(`${HUBSPOT_API}${endpoint}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params,
+        timeout: 10000
+      });
+      
+      const results = res.data?.results || [];
+      
+      // Aplicar filtro si existe
+      const filtered = filterFn ? results.filter(filterFn) : results;
+      allRecords.push(...filtered);
+      
+      // Verificar si hay más páginas
+      after = res.data?.paging?.next?.after;
+      hasMore = !!after;
+      
+    } catch (error) {
+      console.error(`Error fetching ${endpoint}:`, error.message);
+      break;
+    }
+  }
+  
+  return allRecords;
+}
 
-  const lines = [];
+/**
+ * Genera XLSX completo de resumen de auditoría
+ */
+export async function generateAuditSummaryXLSX(scanData, portalId) {
+  const { efficiency, contacts, users, deals, companies, insights, trafficLights } = scanData;
   
-  // Header
-  lines.push("Cost CRM Risk Scanner - Resumen de Auditoría Completa");
-  lines.push(`Fecha del análisis,${new Date().toISOString().split('T')[0]}`);
-  lines.push(`Portal ID,${portalId}`);
-  lines.push("");
+  // Hoja 1: Resumen General
+  const summaryData = [
+    ["Cost CRM Risk Scanner - Resumen de Auditoría Completa"],
+    ["Fecha del análisis", new Date().toISOString().split('T')[0]],
+    ["Portal ID", portalId],
+    [],
+    ["PUNTUACIÓN GLOBAL"],
+    ["Score de eficiencia", `${efficiency.score}/100`],
+    ["Nivel", efficiency.level],
+    [],
+    ["PUNTUACIÓN POR OBJETO"],
+  ];
   
-  // Scores globales
-  lines.push("PUNTUACIÓN GLOBAL");
-  lines.push(`Score de eficiencia,${efficiency.score}/100`);
-  lines.push(`Nivel,${efficiency.level}`);
-  lines.push("");
-  
-  // Scores por objeto
-  lines.push("PUNTUACIÓN POR OBJETO");
   if (trafficLights.contacts) {
-    lines.push(`Contactos,${trafficLights.contacts.score}/100,${trafficLights.contacts.label}`);
+    summaryData.push(["Contactos", `${trafficLights.contacts.score}/100`, trafficLights.contacts.label]);
   }
   if (trafficLights.deals) {
-    lines.push(`Deals,${trafficLights.deals.score}/100,${trafficLights.deals.label}`);
+    summaryData.push(["Deals", `${trafficLights.deals.score}/100`, trafficLights.deals.label]);
   }
   if (trafficLights.companies) {
-    lines.push(`Empresas,${trafficLights.companies.score}/100,${trafficLights.companies.label}`);
+    summaryData.push(["Empresas", `${trafficLights.companies.score}/100`, trafficLights.companies.label]);
   }
   if (trafficLights.users) {
-    lines.push(`Usuarios,${trafficLights.users.score}/100,${trafficLights.users.label}`);
+    summaryData.push(["Usuarios", `${trafficLights.users.score}/100`, trafficLights.users.label]);
   }
-  lines.push("");
   
-  // Instantánea diagnóstica
-  lines.push("INSTANTÁNEA DIAGNÓSTICA");
-  lines.push(`Contactos analizados,${contacts.total}`);
-  lines.push(`Contactos sin email,${contacts.withoutEmail}`);
-  lines.push(`Contactos sin teléfono,${contacts.withoutPhone}`);
-  lines.push(`Contactos sin lifecycle,${contacts.withoutLifecycle}`);
-  lines.push(`Contactos obsoletos,${contacts.stale}`);
-  lines.push("");
+  summaryData.push([]);
+  summaryData.push(["INSTANTÁNEA DIAGNÓSTICA"]);
+  summaryData.push(["Contactos analizados", contacts.total]);
+  summaryData.push(["Contactos sin email", contacts.withoutEmail]);
+  summaryData.push(["Contactos sin teléfono", contacts.withoutPhone]);
+  summaryData.push(["Contactos sin lifecycle", contacts.withoutLifecycle]);
+  summaryData.push(["Contactos obsoletos", contacts.stale]);
+  summaryData.push([]);
   
   if (deals && deals.total > 0) {
-    lines.push(`Deals analizados,${deals.total}`);
-    lines.push(`Deals sin contacto,${deals.withoutContact.count} (${deals.withoutContact.percentage}%)`);
-    lines.push(`Deals sin owner,${deals.withoutOwner.count} (${deals.withoutOwner.percentage}%)`);
-    lines.push(`Deals sin precio,${deals.withoutPrice.count} (${deals.withoutPrice.percentage}%)`);
-    lines.push(`Deals inactivos,${deals.inactive.count} (${deals.inactive.percentage}%)`);
-    lines.push("");
+    summaryData.push(["Deals analizados", deals.total]);
+    summaryData.push(["Deals sin contacto", `${deals.withoutContact.count} (${deals.withoutContact.percentage}%)`]);
+    summaryData.push(["Deals sin owner", `${deals.withoutOwner.count} (${deals.withoutOwner.percentage}%)`]);
+    summaryData.push(["Deals sin precio", `${deals.withoutPrice.count} (${deals.withoutPrice.percentage}%)`]);
+    summaryData.push(["Deals inactivos", `${deals.inactive.count} (${deals.inactive.percentage}%)`]);
+    summaryData.push([]);
   }
   
   if (companies && companies.total > 0) {
-    lines.push(`Empresas analizadas,${companies.total}`);
-    lines.push(`Empresas sin dominio,${companies.withoutDomain.count} (${companies.withoutDomain.percentage}%)`);
-    lines.push(`Empresas sin owner,${companies.withoutOwner.count} (${companies.withoutOwner.percentage}%)`);
-    lines.push(`Empresas sin teléfono,${companies.withoutPhone.count} (${companies.withoutPhone.percentage}%)`);
-    lines.push(`Empresas inactivas,${companies.inactive.count} (${companies.inactive.percentage}%)`);
-    lines.push("");
+    summaryData.push(["Empresas analizadas", companies.total]);
+    summaryData.push(["Empresas sin dominio", `${companies.withoutDomain.count} (${companies.withoutDomain.percentage}%)`]);
+    summaryData.push(["Empresas sin owner", `${companies.withoutOwner.count} (${companies.withoutOwner.percentage}%)`]);
+    summaryData.push(["Empresas sin teléfono", `${companies.withoutPhone.count} (${companies.withoutPhone.percentage}%)`]);
+    summaryData.push(["Empresas inactivas", `${companies.inactive.count} (${companies.inactive.percentage}%)`]);
+    summaryData.push([]);
   }
   
-  // Insights críticos
-  lines.push("INSIGHTS CRÍTICOS DETECTADOS");
+  // Hoja 2: Insights Críticos
+  const insightsData = [
+    ["Título", "Severidad", "Urgencia", "Impacto en Negocio", "Recomendación"]
+  ];
+  
   const criticalInsights = insights.filter(i => i.severity === 'critical');
   if (criticalInsights.length > 0) {
     criticalInsights.forEach(insight => {
-      lines.push(`"${insight.title}"`);
-      lines.push(`Severidad,${insight.severity.toUpperCase()}`);
-      lines.push(`Urgencia,${insight.urgency}`);
-      lines.push(`Impacto,"${insight.businessImpact}"`);
-      lines.push(`Recomendación,"${insight.recommendation}"`);
-      lines.push("");
+      insightsData.push([
+        insight.title,
+        insight.severity.toUpperCase(),
+        insight.urgency,
+        insight.businessImpact,
+        insight.recommendation
+      ]);
     });
   } else {
-    lines.push("No se detectaron insights críticos");
-    lines.push("");
+    insightsData.push(["No se detectaron insights críticos", "", "", "", ""]);
   }
   
-  // Nota de muestreo
-  lines.push("NOTA METODOLÓGICA");
-  lines.push(`"Este diagnóstico se basa en muestreo inteligente de registros. Los patrones detectados en la muestra son indicativos de tendencias en el resto de la cuenta. Para auditoría exhaustiva completa, contactar a Estado 7."`);
+  // Crear workbook
+  const wb = XLSX.utils.book_new();
+  const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
+  const ws2 = XLSX.utils.aoa_to_sheet(insightsData);
   
-  return lines.join('\n');
+  XLSX.utils.book_append_sheet(wb, ws1, "Resumen");
+  XLSX.utils.book_append_sheet(wb, ws2, "Insights Críticos");
+  
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
 /**
- * Genera CSV de deals sin owner
+ * Genera XLSX de deals sin owner
  */
-export async function generateDealsWithoutOwnerCSV(fastify, portalId, token) {
+export async function generateDealsWithoutOwnerXLSX(fastify, portalId, token) {
   try {
-    // Fetch directo con axios (igual que en deals.analysis.js)
-    const res = await axios.get(`${HUBSPOT_API}/crm/v3/objects/deals`, {
-      headers: { Authorization: `Bearer ${token}` },
-      params: {
-        limit: 100,
-        properties: ["dealname", "dealstage", "amount", "hubspot_owner_id", "closedate"].join(",")
-      },
-      timeout: 5000
-    });
+    fastify.log.info({ portalId }, "Fetching all deals without owner");
     
-    const deals = res.data?.results || [];
-    const dealsWithoutOwner = deals.filter(d => !d.properties.hubspot_owner_id);
+    const allDeals = await fetchAllRecords(
+      '/crm/v3/objects/deals',
+      token,
+      ["dealname", "dealstage", "amount", "hubspot_owner_id", "closedate", "createdate"],
+      (deal) => !deal.properties.hubspot_owner_id // Filtrar solo deals sin owner
+    );
     
-    const lines = [];
-    lines.push("Deal Name,Deal Stage,Amount,Close Date,Deal ID,URL");
+    fastify.log.info({ portalId, count: allDeals.length }, "Deals without owner fetched");
     
-    dealsWithoutOwner.forEach(deal => {
+    // Preparar datos para Excel
+    const data = [
+      ["Deal Name", "Deal Stage", "Amount", "Close Date", "Created Date", "Deal ID", "URL"]
+    ];
+    
+    allDeals.forEach(deal => {
       const p = deal.properties;
-      const amount = p.amount || '';
-      const stage = p.dealstage || 'Sin etapa';
-      const closeDate = p.closedate || '';
       const dealUrl = `https://app.hubspot.com/contacts/${portalId}/deal/${deal.id}`;
       
-      lines.push(`"${p.dealname || 'Sin nombre'}","${stage}","${amount}","${closeDate}","${deal.id}","${dealUrl}"`);
+      data.push([
+        p.dealname || 'Sin nombre',
+        p.dealstage || 'Sin etapa',
+        p.amount || '',
+        p.closedate || '',
+        p.createdate || '',
+        deal.id,
+        dealUrl
+      ]);
     });
     
-    return lines.join('\n');
+    // Crear workbook
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    
+    // Autoajustar anchos de columna
+    ws['!cols'] = [
+      { wch: 30 }, // Deal Name
+      { wch: 20 }, // Deal Stage
+      { wch: 15 }, // Amount
+      { wch: 15 }, // Close Date
+      { wch: 15 }, // Created Date
+      { wch: 15 }, // Deal ID
+      { wch: 50 }  // URL
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws, "Deals sin Owner");
+    
+    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   } catch (error) {
-    fastify.log.error({ err: error, portalId }, "Error generating deals without owner CSV");
+    fastify.log.error({ err: error, portalId }, "Error generating deals without owner XLSX");
     throw error;
   }
 }
 
 /**
- * Genera CSV de deals sin contacto
+ * Genera XLSX de deals sin contacto
  */
-export async function generateDealsWithoutContactCSV(fastify, portalId, token, dealsData) {
-  const lines = [];
-  lines.push("Deal Name,Deal Stage,Amount,Deal ID,URL");
-  
-  if (dealsData.withoutContact?.items) {
-    dealsData.withoutContact.items.forEach(deal => {
-      const amount = deal.amount || '';
-      const stage = deal.stage || 'Sin etapa';
-      const dealUrl = `https://app.hubspot.com/contacts/${portalId}/deal/${deal.id}`;
-      
-      lines.push(`"${deal.name || 'Sin nombre'}","${stage}","${amount}","${deal.id}","${dealUrl}"`);
-    });
-  }
-  
-  return lines.join('\n');
-}
-
-/**
- * Genera CSV de deals sin amount
- */
-export async function generateDealsWithoutAmountCSV(fastify, portalId, token, dealsData) {
-  const lines = [];
-  lines.push("Deal Name,Deal Stage,Owner,Deal ID,URL");
-  
-  if (dealsData.withoutPrice?.items) {
-    dealsData.withoutPrice.items.forEach(deal => {
-      const stage = deal.stage || 'Sin etapa';
-      const owner = deal.owner || 'Sin owner';
-      const dealUrl = `https://app.hubspot.com/contacts/${portalId}/deal/${deal.id}`;
-      
-      lines.push(`"${deal.name || 'Sin nombre'}","${stage}","${owner}","${deal.id}","${dealUrl}"`);
-    });
-  }
-  
-  return lines.join('\n');
-}
-
-/**
- * Genera CSV de contactos sin email
- */
-export async function generateContactsWithoutEmailCSV(fastify, portalId, token) {
+export async function generateDealsWithoutContactXLSX(fastify, portalId, token) {
   try {
-    // Fetch directo con axios
-    const res = await axios.get(`${HUBSPOT_API}/crm/v3/objects/contacts`, {
-      headers: { Authorization: `Bearer ${token}` },
-      params: {
-        limit: 100,
-        properties: ["email", "firstname", "lastname", "phone", "mobilephone", "lifecyclestage"].join(",")
-      },
-      timeout: 5000
+    fastify.log.info({ portalId }, "Fetching all deals and checking contacts");
+    
+    // Traer todos los deals
+    const allDeals = await fetchAllRecords(
+      '/crm/v3/objects/deals',
+      token,
+      ["dealname", "dealstage", "amount", "closedate", "createdate"]
+    );
+    
+    // Verificar cuáles tienen contacto asociado
+    const dealsWithoutContact = [];
+    
+    for (const deal of allDeals.slice(0, 1000)) { // Limitar a 1000 para no saturar API
+      try {
+        const assocRes = await axios.get(
+          `${HUBSPOT_API}/crm/v3/objects/deals/${deal.id}/associations/contacts`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            timeout: 5000
+          }
+        );
+        
+        const hasContacts = assocRes.data?.results?.length > 0;
+        if (!hasContacts) {
+          dealsWithoutContact.push(deal);
+        }
+      } catch (err) {
+        // Si falla, asumir que no tiene contacto
+        dealsWithoutContact.push(deal);
+      }
+    }
+    
+    fastify.log.info({ portalId, count: dealsWithoutContact.length }, "Deals without contact found");
+    
+    // Preparar datos para Excel
+    const data = [
+      ["Deal Name", "Deal Stage", "Amount", "Close Date", "Created Date", "Deal ID", "URL"]
+    ];
+    
+    dealsWithoutContact.forEach(deal => {
+      const p = deal.properties;
+      const dealUrl = `https://app.hubspot.com/contacts/${portalId}/deal/${deal.id}`;
+      
+      data.push([
+        p.dealname || 'Sin nombre',
+        p.dealstage || 'Sin etapa',
+        p.amount || '',
+        p.closedate || '',
+        p.createdate || '',
+        deal.id,
+        dealUrl
+      ]);
     });
     
-    const contacts = res.data?.results || [];
-    const contactsWithoutEmail = contacts.filter(c => !c.properties.email);
+    // Crear workbook
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(data);
     
-    const lines = [];
-    lines.push("First Name,Last Name,Phone,Lifecycle Stage,Contact ID,URL");
+    ws['!cols'] = [
+      { wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 50 }
+    ];
     
-    contactsWithoutEmail.forEach(contact => {
+    XLSX.utils.book_append_sheet(wb, ws, "Deals sin Contacto");
+    
+    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  } catch (error) {
+    fastify.log.error({ err: error, portalId }, "Error generating deals without contact XLSX");
+    throw error;
+  }
+}
+
+/**
+ * Genera XLSX de deals sin amount
+ */
+export async function generateDealsWithoutAmountXLSX(fastify, portalId, token) {
+  try {
+    fastify.log.info({ portalId }, "Fetching all deals without amount");
+    
+    const allDeals = await fetchAllRecords(
+      '/crm/v3/objects/deals',
+      token,
+      ["dealname", "dealstage", "amount", "hubspot_owner_id", "closedate", "createdate"],
+      (deal) => !deal.properties.amount // Filtrar solo deals sin amount
+    );
+    
+    fastify.log.info({ portalId, count: allDeals.length }, "Deals without amount fetched");
+    
+    // Preparar datos para Excel
+    const data = [
+      ["Deal Name", "Deal Stage", "Owner ID", "Close Date", "Created Date", "Deal ID", "URL"]
+    ];
+    
+    allDeals.forEach(deal => {
+      const p = deal.properties;
+      const dealUrl = `https://app.hubspot.com/contacts/${portalId}/deal/${deal.id}`;
+      
+      data.push([
+        p.dealname || 'Sin nombre',
+        p.dealstage || 'Sin etapa',
+        p.hubspot_owner_id || 'Sin owner',
+        p.closedate || '',
+        p.createdate || '',
+        deal.id,
+        dealUrl
+      ]);
+    });
+    
+    // Crear workbook
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    
+    ws['!cols'] = [
+      { wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 50 }
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws, "Deals sin Precio");
+    
+    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  } catch (error) {
+    fastify.log.error({ err: error, portalId }, "Error generating deals without amount XLSX");
+    throw error;
+  }
+}
+
+/**
+ * Genera XLSX de contactos sin email
+ */
+export async function generateContactsWithoutEmailXLSX(fastify, portalId, token) {
+  try {
+    fastify.log.info({ portalId }, "Fetching all contacts without email");
+    
+    const allContacts = await fetchAllRecords(
+      '/crm/v3/objects/contacts',
+      token,
+      ["email", "firstname", "lastname", "phone", "mobilephone", "lifecyclestage", "createdate"],
+      (contact) => !contact.properties.email // Filtrar solo contactos sin email
+    );
+    
+    fastify.log.info({ portalId, count: allContacts.length }, "Contacts without email fetched");
+    
+    // Preparar datos para Excel
+    const data = [
+      ["First Name", "Last Name", "Phone", "Mobile", "Lifecycle Stage", "Created Date", "Contact ID", "URL"]
+    ];
+    
+    allContacts.forEach(contact => {
       const p = contact.properties;
-      const phone = p.phone || p.mobilephone || '';
-      const lifecycle = p.lifecyclestage || 'Sin lifecycle';
       const contactUrl = `https://app.hubspot.com/contacts/${portalId}/contact/${contact.id}`;
       
-      lines.push(`"${p.firstname || ''}","${p.lastname || ''}","${phone}","${lifecycle}","${contact.id}","${contactUrl}"`);
+      data.push([
+        p.firstname || '',
+        p.lastname || '',
+        p.phone || '',
+        p.mobilephone || '',
+        p.lifecyclestage || 'Sin lifecycle',
+        p.createdate || '',
+        contact.id,
+        contactUrl
+      ]);
     });
     
-    return lines.join('\n');
+    // Crear workbook
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    
+    ws['!cols'] = [
+      { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 50 }
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws, "Contactos sin Email");
+    
+    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   } catch (error) {
-    fastify.log.error({ err: error, portalId }, "Error generating contacts without email CSV");
+    fastify.log.error({ err: error, portalId }, "Error generating contacts without email XLSX");
     throw error;
   }
 }
 
 /**
- * Genera CSV de empresas sin teléfono
+ * Genera XLSX de empresas sin teléfono
  */
-export async function generateCompaniesWithoutPhoneCSV(fastify, portalId, token) {
+export async function generateCompaniesWithoutPhoneXLSX(fastify, portalId, token) {
   try {
-    // Fetch directo con axios
-    const res = await axios.get(`${HUBSPOT_API}/crm/v3/objects/companies`, {
-      headers: { Authorization: `Bearer ${token}` },
-      params: {
-        limit: 100,
-        properties: ["name", "domain", "phone", "hubspot_owner_id"].join(",")
-      },
-      timeout: 5000
-    });
+    fastify.log.info({ portalId }, "Fetching all companies without phone");
     
-    const companies = res.data?.results || [];
-    const companiesWithoutPhone = companies.filter(c => !c.properties.phone);
+    const allCompanies = await fetchAllRecords(
+      '/crm/v3/objects/companies',
+      token,
+      ["name", "domain", "phone", "hubspot_owner_id", "createdate"],
+      (company) => !company.properties.phone // Filtrar solo empresas sin teléfono
+    );
     
-    const lines = [];
-    lines.push("Company Name,Domain,Owner,Company ID,URL");
+    fastify.log.info({ portalId, count: allCompanies.length }, "Companies without phone fetched");
     
-    companiesWithoutPhone.forEach(company => {
+    // Preparar datos para Excel
+    const data = [
+      ["Company Name", "Domain", "Owner ID", "Created Date", "Company ID", "URL"]
+    ];
+    
+    allCompanies.forEach(company => {
       const p = company.properties;
-      const domain = p.domain || '';
-      const owner = p.hubspot_owner_id || 'Sin owner';
       const companyUrl = `https://app.hubspot.com/contacts/${portalId}/company/${company.id}`;
       
-      lines.push(`"${p.name || 'Sin nombre'}","${domain}","${owner}","${company.id}","${companyUrl}"`);
+      data.push([
+        p.name || 'Sin nombre',
+        p.domain || '',
+        p.hubspot_owner_id || 'Sin owner',
+        p.createdate || '',
+        company.id,
+        companyUrl
+      ]);
     });
     
-    return lines.join('\n');
+    // Crear workbook
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    
+    ws['!cols'] = [
+      { wch: 30 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 50 }
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws, "Empresas sin Teléfono");
+    
+    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   } catch (error) {
-    fastify.log.error({ err: error, portalId }, "Error generating companies without phone CSV");
+    fastify.log.error({ err: error, portalId }, "Error generating companies without phone XLSX");
     throw error;
   }
 }
-

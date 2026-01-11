@@ -1,12 +1,12 @@
 // src/routes/unlock.js
 import { validateUnlockToken, checkUnlockStatus, logDownload } from "../services/unlock/token.service.js";
 import { 
-  generateAuditSummaryCSV,
-  generateDealsWithoutOwnerCSV,
-  generateDealsWithoutContactCSV,
-  generateDealsWithoutAmountCSV,
-  generateContactsWithoutEmailCSV,
-  generateCompaniesWithoutPhoneCSV
+  generateAuditSummaryXLSX,
+  generateDealsWithoutOwnerXLSX,
+  generateDealsWithoutContactXLSX,
+  generateDealsWithoutAmountXLSX,
+  generateContactsWithoutEmailXLSX,
+  generateCompaniesWithoutPhoneXLSX
 } from "../services/unlock/export.service.js";
 import { getValidAccessToken } from "../services/hubspot/token.service.js";
 import { runScanV3 } from "../controllers/scan.controller.js";
@@ -131,7 +131,7 @@ export default async function unlockRoutes(fastify) {
 
   /**
    * GET /api/unlock/download/:reportType
-   * Descarga un reporte específico en formato CSV
+   * Descarga un reporte específico en formato XLSX
    */
   fastify.get("/api/unlock/download/:reportType", async (req, reply) => {
     const { reportType } = req.params;
@@ -157,43 +157,42 @@ export default async function unlockRoutes(fastify) {
       // Obtener token de HubSpot
       const hubspotToken = await getValidAccessToken(fastify, portalId);
 
-      let csvContent = '';
+      let xlsxBuffer = null;
       let filename = '';
+
+      fastify.log.info({ portalId, reportType }, "Generating XLSX report");
 
       switch (reportType) {
         case 'audit-summary':
           // Ejecutar scan completo para obtener datos
           const scanData = await runScanV3({ query: { portalId }, server: fastify }, { send: () => {} });
-          csvContent = await generateAuditSummaryCSV(scanData, portalId);
-          filename = `audit-summary-${portalId}-${Date.now()}.csv`;
+          xlsxBuffer = await generateAuditSummaryXLSX(scanData, portalId);
+          filename = `audit-summary-${portalId}-${Date.now()}.xlsx`;
           break;
 
         case 'deals-without-owner':
-          csvContent = await generateDealsWithoutOwnerCSV(fastify, portalId, hubspotToken);
-          filename = `deals-without-owner-${portalId}-${Date.now()}.csv`;
+          xlsxBuffer = await generateDealsWithoutOwnerXLSX(fastify, portalId, hubspotToken);
+          filename = `deals-without-owner-${portalId}-${Date.now()}.xlsx`;
           break;
 
         case 'deals-without-contact':
-          // Necesitamos datos del último scan
-          const dealsData = req.body?.dealsData || {};
-          csvContent = await generateDealsWithoutContactCSV(fastify, portalId, hubspotToken, dealsData);
-          filename = `deals-without-contact-${portalId}-${Date.now()}.csv`;
+          xlsxBuffer = await generateDealsWithoutContactXLSX(fastify, portalId, hubspotToken);
+          filename = `deals-without-contact-${portalId}-${Date.now()}.xlsx`;
           break;
 
         case 'deals-without-amount':
-          const dealsDataAmount = req.body?.dealsData || {};
-          csvContent = await generateDealsWithoutAmountCSV(fastify, portalId, hubspotToken, dealsDataAmount);
-          filename = `deals-without-amount-${portalId}-${Date.now()}.csv`;
+          xlsxBuffer = await generateDealsWithoutAmountXLSX(fastify, portalId, hubspotToken);
+          filename = `deals-without-amount-${portalId}-${Date.now()}.xlsx`;
           break;
 
         case 'contacts-without-email':
-          csvContent = await generateContactsWithoutEmailCSV(fastify, portalId, hubspotToken);
-          filename = `contacts-without-email-${portalId}-${Date.now()}.csv`;
+          xlsxBuffer = await generateContactsWithoutEmailXLSX(fastify, portalId, hubspotToken);
+          filename = `contacts-without-email-${portalId}-${Date.now()}.xlsx`;
           break;
 
         case 'companies-without-phone':
-          csvContent = await generateCompaniesWithoutPhoneCSV(fastify, portalId, hubspotToken);
-          filename = `companies-without-phone-${portalId}-${Date.now()}.csv`;
+          xlsxBuffer = await generateCompaniesWithoutPhoneXLSX(fastify, portalId, hubspotToken);
+          filename = `companies-without-phone-${portalId}-${Date.now()}.xlsx`;
           break;
 
         default:
@@ -202,20 +201,26 @@ export default async function unlockRoutes(fastify) {
           });
       }
 
+      if (!xlsxBuffer) {
+        throw new Error("Failed to generate XLSX buffer");
+      }
+
       // Registrar descarga
-      await logDownload(fastify, portalId, token, 'csv', reportType);
+      await logDownload(fastify, portalId, token, 'xlsx', reportType);
+
+      fastify.log.info({ portalId, reportType, size: xlsxBuffer.length }, "XLSX report generated successfully");
 
       // Enviar archivo
       reply
-        .header('Content-Type', 'text/csv; charset=utf-8')
+        .header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         .header('Content-Disposition', `attachment; filename="${filename}"`)
-        .send(csvContent);
+        .send(xlsxBuffer);
 
     } catch (error) {
       fastify.log.error({ err: error, portalId, reportType }, "Error generating download");
       return reply.code(500).send({ 
         error: "Download failed",
-        message: "Error al generar descarga" 
+        message: error.message || "Error al generar descarga" 
       });
     }
   });
