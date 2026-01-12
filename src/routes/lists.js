@@ -1,4 +1,4 @@
-import { refreshAccessToken } from "../services/hubspot/refreshToken.service.js";
+import { refreshPortalToken } from "../services/hubspot/refreshToken.service.js";
 
 /**
  * ========================================
@@ -23,7 +23,7 @@ const listsRoutes = async (fastify, options) => {
       }
       
       // Obtener access token
-      const token = await refreshAccessToken(portalId);
+      const token = await refreshPortalToken(fastify, portalId);
       if (!token) {
         throw new Error("No se pudo obtener access token para este portal");
       }
