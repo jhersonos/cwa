@@ -326,6 +326,21 @@ const listsRoutes = async (fastify, options) => {
         }
         
         try {
+          const requestBody = {
+            name: definition.name,
+            objectTypeId: definition.objectTypeId,
+            processingType: 'DYNAMIC', // Lista activa
+            filterBranch: definition.filterBranch
+          };
+          
+          fastify.log.info({ 
+            listId, 
+            portalId,
+            listName: definition.name,
+            objectTypeId: definition.objectTypeId,
+            requestBody: JSON.stringify(requestBody) 
+          }, 'Creating list in HubSpot');
+          
           // Crear lista activa en HubSpot usando Lists API v3
           const response = await fetch(
             `https://api.hubapi.com/crm/v3/lists/`,
@@ -335,27 +350,39 @@ const listsRoutes = async (fastify, options) => {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({
-                name: definition.name,
-                objectTypeId: definition.objectTypeId,
-                processingType: 'DYNAMIC', // Lista activa
-                filterBranch: definition.filterBranch
-              })
+              body: JSON.stringify(requestBody)
             }
           );
           
           if (!response.ok) {
             const errorText = await response.text();
             let errorMsg = errorText;
+            let errorDetails = {};
+            
             try {
               const errorJson = JSON.parse(errorText);
               errorMsg = errorJson.message || errorJson.error || errorText;
+              errorDetails = errorJson;
             } catch {}
             
-            throw new Error(errorMsg);
+            fastify.log.error({ 
+              listId, 
+              statusCode: response.status,
+              errorText,
+              errorDetails,
+              requestBody: JSON.stringify(requestBody)
+            }, 'HubSpot API error creating list');
+            
+            throw new Error(`[${response.status}] ${errorMsg}`);
           }
           
           const listData = await response.json();
+          
+          fastify.log.info({ 
+            listId, 
+            hubspotListId: listData.listId,
+            listName: definition.name 
+          }, 'List created successfully');
           
           results.push({
             listId,
@@ -368,7 +395,13 @@ const listsRoutes = async (fastify, options) => {
           created++;
           
         } catch (err) {
-          fastify.log.error({ err, listId }, "Error creating list");
+          fastify.log.error({ 
+            err: err.message, 
+            stack: err.stack,
+            listId,
+            portalId 
+          }, "Error creating list - catch block");
+          
           results.push({
             listId,
             success: false,
