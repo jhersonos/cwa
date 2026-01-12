@@ -166,7 +166,7 @@ const listsRoutes = async (fastify, options) => {
                   property: 'notes_last_updated',
                   operation: {
                     operationType: 'ALL_PROPERTY',
-                    operator: 'IS_NOT_SET'
+                    operator: 'IS_UNKNOWN'
                   }
                 }
               ]
@@ -188,7 +188,7 @@ const listsRoutes = async (fastify, options) => {
                   property: 'email',
                   operation: {
                     operationType: 'ALL_PROPERTY',
-                    operator: 'IS_NOT_SET'
+                    operator: 'IS_UNKNOWN'
                   }
                 },
                 {
@@ -196,7 +196,7 @@ const listsRoutes = async (fastify, options) => {
                   property: 'hubspot_owner_id',
                   operation: {
                     operationType: 'ALL_PROPERTY',
-                    operator: 'IS_NOT_SET'
+                    operator: 'IS_UNKNOWN'
                   }
                 }
               ]
@@ -328,7 +328,7 @@ const listsRoutes = async (fastify, options) => {
                   property: 'amount',
                   operation: {
                     operationType: 'ALL_PROPERTY',
-                    operator: 'IS_NOT_SET'
+                    operator: 'IS_UNKNOWN'
                   }
                 },
                 {
@@ -336,7 +336,7 @@ const listsRoutes = async (fastify, options) => {
                   property: 'hubspot_owner_id',
                   operation: {
                     operationType: 'ALL_PROPERTY',
-                    operator: 'IS_NOT_SET'
+                    operator: 'IS_UNKNOWN'
                   }
                 }
               ]
