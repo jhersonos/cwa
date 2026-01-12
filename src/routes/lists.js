@@ -14,11 +14,29 @@ const listsRoutes = async (fastify, options) => {
    */
   fastify.post("/api/lists/create", async (req, reply) => {
     try {
-      const { portalId, listIds } = req.body;
+      // Workaround: Re-parsear body si llegó como string (HubSpot fetch sin Content-Type)
+      let parsedBody = req.body;
+      if (typeof req.body === 'string') {
+        try {
+          parsedBody = JSON.parse(req.body);
+        } catch (e) {
+          fastify.log.warn('Failed to parse body as JSON', e);
+        }
+      }
+      
+      const { portalId, listIds } = parsedBody;
+      
+      fastify.log.info({ portalId, listIds, bodyType: typeof req.body, parsedBodyType: typeof parsedBody }, 'POST /api/lists/create');
       
       if (!portalId || !listIds || !Array.isArray(listIds) || listIds.length === 0) {
         return reply.code(400).send({
-          error: "Se requiere portalId y listIds (array no vacío)"
+          error: "Se requiere portalId y listIds (array no vacío)",
+          debug: {
+            receivedPortalId: portalId,
+            receivedListIds: listIds,
+            bodyType: typeof req.body,
+            rawBody: typeof req.body === 'string' ? req.body.substring(0, 200) : 'not string'
+          }
         });
       }
       
