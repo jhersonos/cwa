@@ -124,7 +124,7 @@ const listsDebugRoutes = async (fastify, options) => {
                   property: 'email',
                   operation: {
                     operationType: 'ALL_PROPERTY',
-                    operator: 'IS_NOT_SET'
+                    operator: 'IS_UNKNOWN'
                   }
                 }
               ]
