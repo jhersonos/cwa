@@ -59,14 +59,20 @@ const listsRoutes = async (fastify, options) => {
           filterBranch: {
             filterBranchType: 'OR',
             filterBranchOperator: 'OR',
-            filters: [
+            filterBranches: [
               {
-                filterType: 'PROPERTY',
-                property: 'email',
-                operation: {
-                  operationType: 'ALL_PROPERTY',
-                  operator: 'IS_NOT_SET'
-                }
+                filterBranchType: 'AND',
+                filterBranchOperator: 'AND',
+                filters: [
+                  {
+                    filterType: 'PROPERTY',
+                    property: 'email',
+                    operation: {
+                      operationType: 'ALL_PROPERTY',
+                      operator: 'IS_NOT_SET'
+                    }
+                  }
+                ]
               }
             ]
           }

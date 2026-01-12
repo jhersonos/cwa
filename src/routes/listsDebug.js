@@ -48,7 +48,7 @@ const listsDebugRoutes = async (fastify, options) => {
         });
       }
       
-      // 3. Intentar crear lista simple con filtro básico
+      // 3. Intentar crear lista simple con estructura correcta
       const simpleList = {
         name: `[TEST CWA] Lista prueba ${Date.now()}`,
         objectTypeId: '0-1', // Contacts
@@ -56,14 +56,20 @@ const listsDebugRoutes = async (fastify, options) => {
         filterBranch: {
           filterBranchType: 'OR',
           filterBranchOperator: 'OR',
-          filters: [
+          filterBranches: [ // ← filterBranches (plural) en root
             {
-              filterType: 'PROPERTY',
-              property: 'email',
-              operation: {
-                operationType: 'ALL_PROPERTY',
-                operator: 'HAS_PROPERTY'
-              }
+              filterBranchType: 'AND',
+              filterBranchOperator: 'AND',
+              filters: [ // ← filters (singular) dentro de AND
+                {
+                  filterType: 'PROPERTY',
+                  property: 'email',
+                  operation: {
+                    operationType: 'ALL_PROPERTY',
+                    operator: 'HAS_PROPERTY'
+                  }
+                }
+              ]
             }
           ]
         }
@@ -108,14 +114,20 @@ const listsDebugRoutes = async (fastify, options) => {
         filterBranch: {
           filterBranchType: 'OR',
           filterBranchOperator: 'OR',
-          filters: [
+          filterBranches: [ // ← filterBranches (plural) en root
             {
-              filterType: 'PROPERTY',
-              property: 'email',
-              operation: {
-                operationType: 'ALL_PROPERTY',
-                operator: 'IS_NOT_SET'
-              }
+              filterBranchType: 'AND',
+              filterBranchOperator: 'AND',
+              filters: [ // ← filters (singular) dentro de AND
+                {
+                  filterType: 'PROPERTY',
+                  property: 'email',
+                  operation: {
+                    operationType: 'ALL_PROPERTY',
+                    operator: 'IS_NOT_SET'
+                  }
+                }
+              ]
             }
           ]
         }
