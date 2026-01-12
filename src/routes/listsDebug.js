@@ -48,11 +48,25 @@ const listsDebugRoutes = async (fastify, options) => {
         });
       }
       
-      // 3. Intentar crear lista MUY simple
+      // 3. Intentar crear lista simple con filtro básico
       const simpleList = {
         name: `[TEST CWA] Lista prueba ${Date.now()}`,
         objectTypeId: '0-1', // Contacts
-        processingType: 'SNAPSHOT' // Estática (más simple)
+        processingType: 'SNAPSHOT', // Estática
+        filterBranch: {
+          filterBranchType: 'OR',
+          filterBranchOperator: 'OR',
+          filters: [
+            {
+              filterType: 'PROPERTY',
+              property: 'email',
+              operation: {
+                operationType: 'ALL_PROPERTY',
+                operator: 'HAS_PROPERTY'
+              }
+            }
+          ]
+        }
       };
       
       const createResponse = await fetch(
