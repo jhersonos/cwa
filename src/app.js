@@ -15,6 +15,7 @@ import unlockRoutes from "./routes/unlock.js";
 import contactsDetailsRoutes from "./routes/contactsDetails.js";
 import paymentRoutes from "./routes/payment.js";
 import listsRoutes from "./routes/lists.js";
+import listsDebugRoutes from "./routes/listsDebug.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,6 +61,7 @@ export default async function buildApp() {
   await app.register(contactsDetailsRoutes);
   await app.register(paymentRoutes);
   await app.register(listsRoutes);
+  await app.register(listsDebugRoutes);
   
   app.get("/", async () => {
     return {
