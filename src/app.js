@@ -82,5 +82,17 @@ export default async function buildApp() {
     }
   });
 
+  // Ruta específica para página de éxito de OAuth
+  app.get("/oauth-success.html", async (req, reply) => {
+    try {
+      const htmlPath = path.join(__dirname, '../public/oauth-success.html');
+      const html = readFileSync(htmlPath, 'utf-8');
+      reply.type('text/html').send(html);
+    } catch (error) {
+      app.log.error({ err: error }, "Error serving oauth-success.html");
+      reply.code(500).send({ error: "Failed to load OAuth success page" });
+    }
+  });
+
   return app;
 }
