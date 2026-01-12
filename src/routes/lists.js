@@ -83,16 +83,18 @@ const listsRoutes = async (fastify, options) => {
           filterBranch: {
             filterBranchType: 'OR',
             filterBranchOperator: 'OR',
-            filters: [
-              {
+            filterBranches: [{
+              filterBranchType: 'AND',
+              filterBranchOperator: 'AND',
+              filters: [{
                 filterType: 'PROPERTY',
                 property: 'phone',
                 operation: {
                   operationType: 'ALL_PROPERTY',
                   operator: 'IS_NOT_SET'
                 }
-              }
-            ]
+              }]
+            }]
           }
         },
         'contacts-without-owner': {
@@ -101,26 +103,30 @@ const listsRoutes = async (fastify, options) => {
           filterBranch: {
             filterBranchType: 'OR',
             filterBranchOperator: 'OR',
-            filters: [
-              {
+            filterBranches: [{
+              filterBranchType: 'AND',
+              filterBranchOperator: 'AND',
+              filters: [{
                 filterType: 'PROPERTY',
                 property: 'hubspot_owner_id',
                 operation: {
                   operationType: 'ALL_PROPERTY',
                   operator: 'IS_NOT_SET'
                 }
-              }
-            ]
+              }]
+            }]
           }
         },
         'contacts-inactive-180': {
           name: '[CWA] Contactos inactivos +180 días',
           objectTypeId: '0-1',
           filterBranch: {
-            filterBranchType: 'AND',
-            filterBranchOperator: 'AND',
-            filters: [
-              {
+            filterBranchType: 'OR',
+            filterBranchOperator: 'OR',
+            filterBranches: [{
+              filterBranchType: 'AND',
+              filterBranchOperator: 'AND',
+              filters: [{
                 filterType: 'PROPERTY',
                 property: 'notes_last_updated',
                 operation: {
@@ -130,63 +136,71 @@ const listsRoutes = async (fastify, options) => {
                   numberOfDays: 180,
                   timeUnitType: 'DAY'
                 }
-              }
-            ]
+              }]
+            }]
           }
         },
         'contacts-created-90-no-activity': {
           name: '[CWA] Contactos creados +90d sin actividad',
           objectTypeId: '0-1',
           filterBranch: {
-            filterBranchType: 'AND',
-            filterBranchOperator: 'AND',
-            filters: [
-              {
-                filterType: 'PROPERTY',
-                property: 'createdate',
-                operation: {
-                  operationType: 'RANGE_COMPARISON',
-                  operator: 'IS_BEFORE_DATE',
-                  includeObjectsWithNoValueSet: false,
-                  numberOfDays: 90,
-                  timeUnitType: 'DAY'
+            filterBranchType: 'OR',
+            filterBranchOperator: 'OR',
+            filterBranches: [{
+              filterBranchType: 'AND',
+              filterBranchOperator: 'AND',
+              filters: [
+                {
+                  filterType: 'PROPERTY',
+                  property: 'createdate',
+                  operation: {
+                    operationType: 'RANGE_COMPARISON',
+                    operator: 'IS_BEFORE_DATE',
+                    includeObjectsWithNoValueSet: false,
+                    numberOfDays: 90,
+                    timeUnitType: 'DAY'
+                  }
+                },
+                {
+                  filterType: 'PROPERTY',
+                  property: 'notes_last_updated',
+                  operation: {
+                    operationType: 'ALL_PROPERTY',
+                    operator: 'IS_NOT_SET'
+                  }
                 }
-              },
-              {
-                filterType: 'PROPERTY',
-                property: 'notes_last_updated',
-                operation: {
-                  operationType: 'ALL_PROPERTY',
-                  operator: 'IS_NOT_SET'
-                }
-              }
-            ]
+              ]
+            }]
           }
         },
         'contacts-high-risk': {
           name: '[CWA] Contactos de alto riesgo',
           objectTypeId: '0-1',
           filterBranch: {
-            filterBranchType: 'AND',
-            filterBranchOperator: 'AND',
-            filters: [
-              {
-                filterType: 'PROPERTY',
-                property: 'email',
-                operation: {
-                  operationType: 'ALL_PROPERTY',
-                  operator: 'IS_NOT_SET'
+            filterBranchType: 'OR',
+            filterBranchOperator: 'OR',
+            filterBranches: [{
+              filterBranchType: 'AND',
+              filterBranchOperator: 'AND',
+              filters: [
+                {
+                  filterType: 'PROPERTY',
+                  property: 'email',
+                  operation: {
+                    operationType: 'ALL_PROPERTY',
+                    operator: 'IS_NOT_SET'
+                  }
+                },
+                {
+                  filterType: 'PROPERTY',
+                  property: 'hubspot_owner_id',
+                  operation: {
+                    operationType: 'ALL_PROPERTY',
+                    operator: 'IS_NOT_SET'
+                  }
                 }
-              },
-              {
-                filterType: 'PROPERTY',
-                property: 'hubspot_owner_id',
-                operation: {
-                  operationType: 'ALL_PROPERTY',
-                  operator: 'IS_NOT_SET'
-                }
-              }
-            ]
+              ]
+            }]
           }
         },
         
@@ -197,8 +211,10 @@ const listsRoutes = async (fastify, options) => {
           filterBranch: {
             filterBranchType: 'OR',
             filterBranchOperator: 'OR',
-            filters: [
-              {
+            filterBranches: [{
+              filterBranchType: 'AND',
+              filterBranchOperator: 'AND',
+              filters: [{
                 filterType: 'ASSOCIATION',
                 associationTypeId: 3, // deal to contact
                 associationCategory: 'HUBSPOT_DEFINED',
@@ -207,8 +223,8 @@ const listsRoutes = async (fastify, options) => {
                   operator: 'EQ',
                   value: 0
                 }
-              }
-            ]
+              }]
+            }]
           }
         },
         'deals-without-amount': {
@@ -217,16 +233,18 @@ const listsRoutes = async (fastify, options) => {
           filterBranch: {
             filterBranchType: 'OR',
             filterBranchOperator: 'OR',
-            filters: [
-              {
+            filterBranches: [{
+              filterBranchType: 'AND',
+              filterBranchOperator: 'AND',
+              filters: [{
                 filterType: 'PROPERTY',
                 property: 'amount',
                 operation: {
                   operationType: 'ALL_PROPERTY',
                   operator: 'IS_NOT_SET'
                 }
-              }
-            ]
+              }]
+            }]
           }
         },
         'deals-without-owner': {
@@ -235,26 +253,30 @@ const listsRoutes = async (fastify, options) => {
           filterBranch: {
             filterBranchType: 'OR',
             filterBranchOperator: 'OR',
-            filters: [
-              {
+            filterBranches: [{
+              filterBranchType: 'AND',
+              filterBranchOperator: 'AND',
+              filters: [{
                 filterType: 'PROPERTY',
                 property: 'hubspot_owner_id',
                 operation: {
                   operationType: 'ALL_PROPERTY',
                   operator: 'IS_NOT_SET'
                 }
-              }
-            ]
+              }]
+            }]
           }
         },
         'deals-inactive-180': {
           name: '[CWA] Deals inactivos +180 días',
           objectTypeId: '0-3',
           filterBranch: {
-            filterBranchType: 'AND',
-            filterBranchOperator: 'AND',
-            filters: [
-              {
+            filterBranchType: 'OR',
+            filterBranchOperator: 'OR',
+            filterBranches: [{
+              filterBranchType: 'AND',
+              filterBranchOperator: 'AND',
+              filters: [{
                 filterType: 'PROPERTY',
                 property: 'notes_last_updated',
                 operation: {
@@ -264,18 +286,20 @@ const listsRoutes = async (fastify, options) => {
                   numberOfDays: 180,
                   timeUnitType: 'DAY'
                 }
-              }
-            ]
+              }]
+            }]
           }
         },
         'deals-stuck-stage': {
           name: '[CWA] Deals estancados por etapa',
           objectTypeId: '0-3',
           filterBranch: {
-            filterBranchType: 'AND',
-            filterBranchOperator: 'AND',
-            filters: [
-              {
+            filterBranchType: 'OR',
+            filterBranchOperator: 'OR',
+            filterBranches: [{
+              filterBranchType: 'AND',
+              filterBranchOperator: 'AND',
+              filters: [{
                 filterType: 'PROPERTY',
                 property: 'hs_date_entered_appointmentscheduled',
                 operation: {
@@ -285,34 +309,38 @@ const listsRoutes = async (fastify, options) => {
                   numberOfDays: 30,
                   timeUnitType: 'DAY'
                 }
-              }
-            ]
+              }]
+            }]
           }
         },
         'deals-high-risk': {
           name: '[CWA] Deals de alto riesgo',
           objectTypeId: '0-3',
           filterBranch: {
-            filterBranchType: 'AND',
-            filterBranchOperator: 'AND',
-            filters: [
-              {
-                filterType: 'PROPERTY',
-                property: 'amount',
-                operation: {
-                  operationType: 'ALL_PROPERTY',
-                  operator: 'IS_NOT_SET'
+            filterBranchType: 'OR',
+            filterBranchOperator: 'OR',
+            filterBranches: [{
+              filterBranchType: 'AND',
+              filterBranchOperator: 'AND',
+              filters: [
+                {
+                  filterType: 'PROPERTY',
+                  property: 'amount',
+                  operation: {
+                    operationType: 'ALL_PROPERTY',
+                    operator: 'IS_NOT_SET'
+                  }
+                },
+                {
+                  filterType: 'PROPERTY',
+                  property: 'hubspot_owner_id',
+                  operation: {
+                    operationType: 'ALL_PROPERTY',
+                    operator: 'IS_NOT_SET'
+                  }
                 }
-              },
-              {
-                filterType: 'PROPERTY',
-                property: 'hubspot_owner_id',
-                operation: {
-                  operationType: 'ALL_PROPERTY',
-                  operator: 'IS_NOT_SET'
-                }
-              }
-            ]
+              ]
+            }]
           }
         }
       };
