@@ -128,13 +128,13 @@ const listsRoutes = async (fastify, options) => {
               filterBranchOperator: 'AND',
               filters: [{
                 filterType: 'PROPERTY',
-                property: 'notes_last_updated',
+                property: 'hs_lastactivitydate',
                 operation: {
                   operationType: 'RANGE_COMPARISON',
                   operator: 'IS_BEFORE_DATE',
-                  includeObjectsWithNoValueSet: false,
-                  numberOfDays: 180,
-                  timeUnitType: 'DAY'
+                  numberOfDays: 90,
+                  timeUnitType: 'DAY',
+                  includeObjectsWithNoValueSet: true
                 }
               }]
             }]
@@ -163,7 +163,7 @@ const listsRoutes = async (fastify, options) => {
                 },
                 {
                   filterType: 'PROPERTY',
-                  property: 'notes_last_updated',
+                  property: 'hs_lastactivitydate',
                   operation: {
                     operationType: 'ALL_PROPERTY',
                     operator: 'IS_UNKNOWN'
@@ -216,8 +216,8 @@ const listsRoutes = async (fastify, options) => {
               filterBranchOperator: 'AND',
               filters: [{
                 filterType: 'ASSOCIATION',
-                associationTypeId: 3, // deal to contact
                 associationCategory: 'HUBSPOT_DEFINED',
+                associationTypeId: 'deal_to_contact',
                 operation: {
                   operationType: 'ASSOCIATION_COUNT',
                   operator: 'EQ',
@@ -278,7 +278,7 @@ const listsRoutes = async (fastify, options) => {
               filterBranchOperator: 'AND',
               filters: [{
                 filterType: 'PROPERTY',
-                property: 'notes_last_updated',
+                property: 'hs_lastactivitydate',
                 operation: {
                   operationType: 'RANGE_COMPARISON',
                   operator: 'IS_BEFORE_DATE',
@@ -301,11 +301,11 @@ const listsRoutes = async (fastify, options) => {
               filterBranchOperator: 'AND',
               filters: [{
                 filterType: 'PROPERTY',
-                property: 'hs_date_entered_appointmentscheduled',
+                property: 'hs_lastmodifieddate',
                 operation: {
                   operationType: 'RANGE_COMPARISON',
                   operator: 'IS_BEFORE_DATE',
-                  includeObjectsWithNoValueSet: false,
+                  includeObjectsWithNoValueSet: true,
                   numberOfDays: 30,
                   timeUnitType: 'DAY'
                 }
