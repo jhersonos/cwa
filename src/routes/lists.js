@@ -118,61 +118,55 @@ const listsRoutes = async (fastify, options) => {
           }
         },
         'contacts-inactive-180': {
-          name: '[CWA] Contactos inactivos +180 días',
-          objectTypeId: '0-1',
-          filterBranch: {
-            filterBranchType: 'OR',
-            filterBranchOperator: 'OR',
-            filterBranches: [{
-              filterBranchType: 'AND',
-              filterBranchOperator: 'AND',
-              filters: [{
-                filterType: 'PROPERTY',
-                property: 'hs_lastactivitydate',
-                operation: {
-                  operationType: 'RANGE_COMPARISON',
-                  operator: 'IS_BEFORE_DATE',
-                  numberOfDays: 90,
-                  timeUnitType: 'DAY',
-                  includeObjectsWithNoValueSet: true
-                }
-              }]
-            }]
-          }
-        },
+        name: '[CWA] Contactos inactivos +180 días',
+        objectTypeId: '0-1',
+        filterBranch: {
+          filterBranchType: 'AND',
+          filterBranchOperator: 'AND',
+          filters: [
+            {
+              filterType: 'PROPERTY',
+              property: 'hs_lastactivitydate',
+              operation: {
+                operationType: 'RANGE_COMPARISON',
+                operator: 'IS_BEFORE_DATE',
+                numberOfDays: 180,
+                timeUnitType: 'DAY',
+                includeObjectsWithNoValueSet: false // ✅ CLAVE
+              }
+            }
+          ]
+        }
+      },
         'contacts-created-90-no-activity': {
-          name: '[CWA] Contactos creados +90d sin actividad',
-          objectTypeId: '0-1',
-          filterBranch: {
-            filterBranchType: 'OR',
-            filterBranchOperator: 'OR',
-            filterBranches: [{
-              filterBranchType: 'AND',
-              filterBranchOperator: 'AND',
-              filters: [
-                {
-                  filterType: 'PROPERTY',
-                  property: 'createdate',
-                  operation: {
-                    operationType: 'RANGE_COMPARISON',
-                    operator: 'IS_BEFORE_DATE',
-                    includeObjectsWithNoValueSet: false,
-                    numberOfDays: 90,
-                    timeUnitType: 'DAY'
-                  }
-                },
-                {
-                  filterType: 'PROPERTY',
-                  property: 'hs_lastactivitydate',
-                  operation: {
-                    operationType: 'ALL_PROPERTY',
-                    operator: 'IS_UNKNOWN'
-                  }
-                }
-              ]
-            }]
-          }
-        },
+        name: '[CWA] Contactos creados +90d sin actividad',
+        objectTypeId: '0-1',
+        filterBranch: {
+          filterBranchType: 'AND',
+          filterBranchOperator: 'AND',
+          filters: [
+            {
+              filterType: 'PROPERTY',
+              property: 'createdate',
+              operation: {
+                operationType: 'RANGE_COMPARISON',
+                operator: 'IS_BEFORE_DATE',
+                numberOfDays: 90,
+                timeUnitType: 'DAY',
+                includeObjectsWithNoValueSet: false
+              }
+            },
+            {
+              filterType: 'PROPERTY',
+              property: 'hs_lastactivitydate',
+              operation: {
+                operationType: 'RANGE_COMPARISON',
+                operator: 'IS_UNKNOWN'
+              }
+            }
+          ]
+        }
+      },
         'contacts-high-risk': {
           name: '[CWA] Contactos de alto riesgo',
           objectTypeId: '0-1',
