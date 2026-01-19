@@ -16,6 +16,8 @@ export default async function oauthRoutes(fastify) {
       "crm.objects.deals.read",
       "crm.objects.owners.read",
       "crm.schemas.deals.read",
+      "crm.lists.read",
+      "crm.lists.write",
       "tickets",
       "crm.objects.line_items.read",
       "settings.users.read",
