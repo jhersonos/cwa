@@ -69,6 +69,8 @@ export default async function oauthRoutes(fastify) {
         hub_id
       } = tokenRes.data;
 
+      console.log(tokenRes.data);
+      
       const expiresAt = new Date(
         Date.now() + expires_in * 1000
       );
