@@ -35,10 +35,13 @@ export default async function marketingRoutes(fastify, options) {
 
     } catch (error) {
       console.error('❌ [Marketing API] Error en /workflows:', error);
+      console.error('❌ [Marketing API] Error stack:', error.stack);
+      console.error('❌ [Marketing API] Error name:', error.name);
       
       return reply.code(500).send({
         success: false,
         error: error.message,
+        errorName: error.name,
         message: 'Error al analizar workflows de marketing'
       });
     }

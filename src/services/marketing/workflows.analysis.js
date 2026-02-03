@@ -12,7 +12,14 @@ export async function analyzeWorkflows(portalId, fastify) {
     console.log(`🔍 [Workflows] Analizando workflows para portal ${portalId}...`);
 
     // 1. Obtener token actualizado
+    console.log(`🔑 [Workflows] Obteniendo token para portal ${portalId}...`);
     const accessToken = await refreshPortalToken(portalId, fastify);
+    
+    if (!accessToken) {
+      throw new Error('No se pudo obtener token de acceso. ¿La app está instalada?');
+    }
+    
+    console.log(`✅ [Workflows] Token obtenido exitosamente`);
 
     // 2. Fetch workflows desde HubSpot
     const workflows = await fetchAllWorkflows(accessToken);
@@ -45,6 +52,8 @@ export async function analyzeWorkflows(portalId, fastify) {
  */
 async function fetchAllWorkflows(accessToken) {
   try {
+    console.log(`📡 [Workflows] Llamando a HubSpot API (automation/v4/flows)...`);
+    
     const response = await axios.get(
       'https://api.hubapi.com/automation/v4/flows',
       {
@@ -58,11 +67,26 @@ async function fetchAllWorkflows(accessToken) {
       }
     );
 
+    console.log(`✅ [Workflows] Respuesta recibida de HubSpot API`);
     return response.data.workflows || [];
 
   } catch (error) {
-    console.error('❌ Error fetching workflows:', error.response?.data || error.message);
-    throw new Error(`Error al obtener workflows: ${error.message}`);
+    console.error('❌ [Workflows] Error fetching workflows from HubSpot:');
+    console.error('   Status:', error.response?.status);
+    console.error('   Data:', error.response?.data);
+    console.error('   Message:', error.message);
+    
+    // Error específico de permisos
+    if (error.response?.status === 403) {
+      throw new Error('Permisos insuficientes. Verifica que la app tenga el scope "automation"');
+    }
+    
+    // Error específico de token inválido
+    if (error.response?.status === 401) {
+      throw new Error('Token de acceso inválido o expirado. Reinstala la app.');
+    }
+    
+    throw new Error(`Error al obtener workflows de HubSpot: ${error.response?.data?.message || error.message}`);
   }
 }
 
