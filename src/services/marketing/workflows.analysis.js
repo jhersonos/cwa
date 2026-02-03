@@ -13,7 +13,7 @@ export async function analyzeWorkflows(portalId, fastify) {
 
     // 1. Obtener token actualizado
     console.log(`🔑 [Workflows] Obteniendo token para portal ${portalId}...`);
-    const accessToken = await refreshPortalToken(portalId, fastify);
+    const accessToken = await refreshPortalToken(fastify, portalId);
     
     if (!accessToken) {
       throw new Error('No se pudo obtener token de acceso. ¿La app está instalada?');
