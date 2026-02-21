@@ -68,7 +68,8 @@ async function fetchAllWorkflows(accessToken) {
     );
 
     console.log(`✅ [Workflows] Respuesta recibida de HubSpot API`);
-    return response.data.workflows || [];
+    const raw = response.data.results || response.data.workflows || response.data || [];
+    return Array.isArray(raw) ? raw : [];
 
   } catch (error) {
     console.error('❌ [Workflows] Error fetching workflows from HubSpot:');
@@ -93,9 +94,20 @@ async function fetchAllWorkflows(accessToken) {
 /**
  * Calcula overview general
  */
+function isEnabled(w) {
+  return w.enabled === true || w.isEnabled === true;
+}
+
+function toTimestamp(val) {
+  if (!val) return 0;
+  if (typeof val === 'number' && !Number.isNaN(val)) return val;
+  const t = new Date(val).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
 function calculateOverview(workflows) {
   const total = workflows.length;
-  const activos = workflows.filter(w => w.enabled === true).length;
+  const activos = workflows.filter(w => isEnabled(w)).length;
   const inactivos = total - activos;
 
   return {
@@ -114,24 +126,27 @@ function detectWorkflowsSinUso(workflows) {
   const now = Date.now();
 
   const sinUso = workflows.filter(w => {
-    // Si está inactivo, no cuenta como "sin uso" (ya está desactivado intencionalmente)
-    if (!w.enabled) return false;
+    if (!isEnabled(w)) return false;
 
     const enrollmentTotal = w.enrollmentCounts?.total || 0;
-    const lastExecuted = w.lastExecutedAt || w.updatedAt || w.insertedAt;
-    const daysSinceUse = Math.floor((now - lastExecuted) / (1000 * 60 * 60 * 24));
+    const lastExecuted = toTimestamp(w.lastExecutedAt || w.updatedAt || w.insertedAt || w.createdAt);
+    const daysSinceUse = lastExecuted
+      ? Math.floor((now - lastExecuted) / (1000 * 60 * 60 * 24))
+      : 999;
 
-    // Workflow activo pero sin enrollments o sin ejecutarse en 90+ días
     return enrollmentTotal === 0 || daysSinceUse > threshold;
   }).map(w => {
-    const lastExecuted = w.lastExecutedAt || w.updatedAt || w.insertedAt;
+    const lastExecuted = toTimestamp(w.lastExecutedAt || w.updatedAt || w.insertedAt || w.createdAt);
+    const daysSinceUse = lastExecuted
+      ? Math.floor((now - lastExecuted) / (1000 * 60 * 60 * 24))
+      : 999;
     return {
       id: w.id,
       name: w.name,
-      enabled: w.enabled,
+      enabled: isEnabled(w),
       enrollments: w.enrollmentCounts?.total || 0,
-      lastExecuted: lastExecuted,
-      daysSinceUse: Math.floor((now - lastExecuted) / (1000 * 60 * 60 * 24))
+      lastExecuted: lastExecuted || null,
+      daysSinceUse
     };
   });
 
@@ -149,14 +164,14 @@ function detectWorkflowsConErrores(workflows) {
   // La API v4 no siempre devuelve errores explícitamente
   // Buscamos workflows activos que no se hayan ejecutado recientemente
   const conErrores = workflows.filter(w => {
-    return w.enabled && w.hasErrors === true;
+    return isEnabled(w) && w.hasErrors === true;
   });
 
   return {
     workflows: conErrores.map(w => ({
       id: w.id,
       name: w.name,
-      enabled: w.enabled,
+      enabled: isEnabled(w),
       errorType: 'ERROR_DETECTED',
       lastError: w.lastExecutedAt || w.updatedAt
     })),
@@ -172,13 +187,14 @@ function detectWorkflowsObsoletos(workflows) {
   const now = Date.now();
 
   const obsoletos = workflows.filter(w => {
-    if (!w.enabled) return false; // Solo workflows activos
-    
-    const updatedAt = w.updatedAt || w.insertedAt;
+    if (!isEnabled(w)) return false;
+
+    const updatedAt = toTimestamp(w.updatedAt || w.insertedAt || w.createdAt);
+    if (!updatedAt) return true;
     const daysSinceUpdate = Math.floor((now - updatedAt) / (1000 * 60 * 60 * 24));
     return daysSinceUpdate > threshold;
   }).map(w => {
-    const updatedAt = w.updatedAt || w.insertedAt;
+    const updatedAt = toTimestamp(w.updatedAt || w.insertedAt || w.createdAt) || now;
     return {
       id: w.id,
       name: w.name,
@@ -198,9 +214,8 @@ function detectWorkflowsObsoletos(workflows) {
  */
 function detectWorkflowsSinGoals(workflows) {
   const sinGoals = workflows.filter(w => {
-    if (!w.enabled) return false; // Solo workflows activos
-    
-    // Verificar si tiene goals configurados
+    if (!isEnabled(w)) return false;
+
     const hasGoal = w.goalCriteria && w.goalCriteria.isEnabled === true;
     return !hasGoal;
   }).map(w => ({
@@ -224,12 +239,16 @@ function calculateWorkflowsScore(workflows, analysis) {
 
   if (total === 0) return 0;
 
+  const activos = workflows.filter(w => isEnabled(w)).length;
+  if (activos === 0) {
+    return Math.max(0, Math.round(100 - ((total - activos) / total) * 100 * 0.3));
+  }
+
   // Penalizaciones
-  const activos = workflows.filter(w => w.enabled).length;
   const percentageInactive = ((total - activos) / total) * 100;
   score -= percentageInactive * 0.3; // -30% por workflows inactivos
 
-  // Workflows sin uso
+  // Workflows sin uso (solo sobre activos)
   const sinUsoPercentage = (analysis.sinUso.total / activos) * 100;
   score -= Math.min(sinUsoPercentage * 0.5, 20); // Max -20 pts
 
