@@ -1,4 +1,9 @@
 import { analyzeWorkflows } from '../services/marketing/workflows.analysis.js';
+import { analyzeEmailsTeaser } from '../services/marketing/emails.teaser.js';
+import { analyzeFormsTeaser } from '../services/marketing/forms.teaser.js';
+import { analyzeLeadScoringTeaser } from '../services/marketing/leadScoring.teaser.js';
+import { analyzeLandingPagesTeaser } from '../services/marketing/landingPages.teaser.js';
+import { analyzeListsTeaser } from '../services/marketing/lists.teaser.js';
 
 export default async function marketingRoutes(fastify, options) {
   
@@ -44,6 +49,86 @@ export default async function marketingRoutes(fastify, options) {
         errorName: error.name,
         message: 'Error al analizar workflows de marketing'
       });
+    }
+  });
+
+  /**
+   * GET /api/marketing/emails-teaser/:portalId
+   * Teaser: máx 50 emails, solo metadata/agregados
+   */
+  fastify.get('/emails-teaser/:portalId', async (request, reply) => {
+    try {
+      const portalId = parseInt(request.params.portalId, 10);
+      if (!portalId || isNaN(portalId)) return reply.code(400).send({ success: false, error: 'Portal ID inválido' });
+      const data = await analyzeEmailsTeaser(portalId, fastify);
+      return reply.code(200).send({ success: true, portalId, data });
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ success: false, error: err.message });
+    }
+  });
+
+  /**
+   * GET /api/marketing/forms-teaser/:portalId
+   * Teaser: máx 50 formularios, solo metadata
+   */
+  fastify.get('/forms-teaser/:portalId', async (request, reply) => {
+    try {
+      const portalId = parseInt(request.params.portalId, 10);
+      if (!portalId || isNaN(portalId)) return reply.code(400).send({ success: false, error: 'Portal ID inválido' });
+      const data = await analyzeFormsTeaser(portalId, fastify);
+      return reply.code(200).send({ success: true, portalId, data });
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ success: false, error: err.message });
+    }
+  });
+
+  /**
+   * GET /api/marketing/lead-scoring-teaser/:portalId
+   * Diagnóstico básico: existe scoring, % sin score
+   */
+  fastify.get('/lead-scoring-teaser/:portalId', async (request, reply) => {
+    try {
+      const portalId = parseInt(request.params.portalId, 10);
+      if (!portalId || isNaN(portalId)) return reply.code(400).send({ success: false, error: 'Portal ID inválido' });
+      const data = await analyzeLeadScoringTeaser(portalId, fastify);
+      return reply.code(200).send({ success: true, portalId, data });
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ success: false, error: err.message });
+    }
+  });
+
+  /**
+   * GET /api/marketing/landing-pages-teaser/:portalId
+   * Teaser: máx 50 landing pages, solo metadata
+   */
+  fastify.get('/landing-pages-teaser/:portalId', async (request, reply) => {
+    try {
+      const portalId = parseInt(request.params.portalId, 10);
+      if (!portalId || isNaN(portalId)) return reply.code(400).send({ success: false, error: 'Portal ID inválido' });
+      const data = await analyzeLandingPagesTeaser(portalId, fastify);
+      return reply.code(200).send({ success: true, portalId, data });
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ success: false, error: err.message });
+    }
+  });
+
+  /**
+   * GET /api/marketing/lists-teaser/:portalId
+   * Teaser: máx 50 listas, metadata (sin uso, filtros vacíos, duplicados)
+   */
+  fastify.get('/lists-teaser/:portalId', async (request, reply) => {
+    try {
+      const portalId = parseInt(request.params.portalId, 10);
+      if (!portalId || isNaN(portalId)) return reply.code(400).send({ success: false, error: 'Portal ID inválido' });
+      const data = await analyzeListsTeaser(portalId, fastify);
+      return reply.code(200).send({ success: true, portalId, data });
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ success: false, error: err.message });
     }
   });
 
