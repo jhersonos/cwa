@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Informe ejecutivo — Cost Waste Analyzer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: #1e293b;
+            line-height: 1.5;
+            background: #fff;
+            max-width: 210mm;
+            margin: 0 auto;
+            padding: 16mm;
+        }
+        @media print {
+            body { padding: 12mm; }
+            .no-print { display: none !important; }
+            .page-break { page-break-before: always; }
+        }
+        h1 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+            letter-spacing: -0.02em;
+        }
+        h2 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #334155;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 12px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .cover {
+            text-align: center;
+            padding: 40px 0 60px;
+        }
+        .cover .score-value {
+            font-size: 48px;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 16px 0 4px;
+        }
+        .cover .score-label {
+            font-size: 14px;
+            color: #64748b;
+        }
+        .cover .level {
+            display: inline-block;
+            margin-top: 16px;
+            padding: 6px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .level-verde { background: #dcfce7; color: #166534; }
+        .level-amarillo { background: #fef9c3; color: #854d0e; }
+        .level-rojo { background: #fee2e2; color: #991b1b; }
+        .cover .meta {
+            margin-top: 32px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+        .section { margin-bottom: 28px; }
+        .risk-box {
+            padding: 14px 18px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .risk-bajo { background: #f0fdf4; border-left: 4px solid #22c55e; }
+        .risk-medio { background: #fffbeb; border-left: 4px solid #eab308; }
+        .risk-alto { background: #fef2f2; border-left: 4px solid #ef4444; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th {
+            text-align: left;
+            padding: 10px 12px;
+            background: #f1f5f9;
+            font-weight: 600;
+            color: #475569;
+        }
+        td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
+        tr:last-child td { border-bottom: none; }
+        .severity-critical { color: #b91c1c; font-weight: 500; }
+        .severity-warning { color: #b45309; font-weight: 500; }
+        .severity-info { color: #0369a1; }
+        .impact-total {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-top: 8px;
+        }
+        .impact-yearly { font-size: 14px; color: #64748b; margin-top: 2px; }
+        .disclaimer {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 10px;
+        }
+        ol {
+            padding-left: 20px;
+            margin-top: 8px;
+        }
+        li { margin-bottom: 6px; font-size: 14px; }
+        .cta-box {
+            background: #0f172a;
+            color: #fff;
+            padding: 24px;
+            border-radius: 8px;
+            margin-top: 24px;
+        }
+        .cta-box h2 { color: #e2e8f0; border-bottom-color: #334155; }
+        .cta-box p { margin-bottom: 12px; font-size: 14px; color: #cbd5e1; }
+        .cta-box a {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 10px 20px;
+            background: #fff;
+            color: #0f172a;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+            border-radius: 6px;
+        }
+        .no-print {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            padding: 10px 18px;
+            background: #1e293b;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .no-print:hover { background: #334155; }
+    </style>
+</head>
+<body>
+    <button class="no-print" onclick="window.print()">Imprimir / Guardar PDF</button>
+
+    <div class="cover">
+        <h1>Cost Waste Analyzer</h1>
+        <p class="score-label">Score global de eficiencia</p>
+        <p class="score-value" id="score-display">—</p>
+        <p class="score-label">sobre 100</p>
+        <span class="level" id="level-badge">—</span>
+        <p class="meta" id="cover-meta">Resumen ejecutivo · Confidencial</p>
+    </div>
+
+    <div class="page-break"></div>
+
+    <div class="section">
+        <h2>Nivel de riesgo operativo</h2>
+        <div class="risk-box" id="risk-box">
+            <p id="risk-text">—</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Top 5 problemas detectados</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Problema</th>
+                    <th>Severidad</th>
+                </tr>
+            </thead>
+            <tbody id="top5-body">
+                <tr><td colspan="3">No hay datos disponibles.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Impacto financiero estimado</h2>
+        <p id="impact-monthly" class="impact-total">—</p>
+        <p id="impact-yearly" class="impact-yearly">—</p>
+        <p class="disclaimer">
+            Estimación orientativa. El cálculo se basa en supuestos estándar de coste operativo y de oportunidad.
+            No constituye asesoramiento fiscal, legal ni contable ni garantía de ahorro.
+        </p>
+    </div>
+
+    <div class="section">
+        <h2>Plan de acción sugerido</h2>
+        <ol id="action-plan">
+            <li>Asignar owner a todos los deals abiertos sin responsable.</li>
+            <li>Revisar o archivar workflows inactivos o sin uso reciente.</li>
+            <li>Limpiar o segmentar contactos y empresas sin actividad relevante.</li>
+            <li>Completar datos críticos (email, teléfono, lifecycle) en contactos incompletos.</li>
+            <li>Establecer revisiones periódicas del score y de los hallazgos del análisis.</li>
+        </ol>
+    </div>
+
+    <div class="section cta-box">
+        <h2>Siguiente paso</h2>
+        <p>
+            Priorizar las correcciones indicadas y, si lo desea, solicitar una revisión gratuita
+            enfocada en los riesgos críticos detectados y en el ahorro potencial.
+        </p>
+        <a href="https://estado7.com/contact?source=cost-waste-analyzer" target="_blank" rel="noopener">Solicitar revisión gratuita</a>
+    </div>
+
+    <script>
+        (function() {
+            var params = new URLSearchParams(window.location.search);
+            var score = params.get('score') || '';
+            var level = (params.get('level') || '').toLowerCase();
+            var impactMonthly = params.get('impactMonthly') || '';
+            var impactYearly = params.get('impactYearly') || '';
+            var top5Raw = params.get('top5') || '[]';
+            var portalId = params.get('portalId') || '';
+
+            // Cover
+            document.getElementById('score-display').textContent = score ? score + '/100' : '—';
+            var levelBadge = document.getElementById('level-badge');
+            levelBadge.textContent = level ? (level.charAt(0).toUpperCase() + level.slice(1)) : '—';
+            levelBadge.className = 'level level-' + (level === 'verde' ? 'verde' : level === 'amarillo' ? 'amarillo' : level === 'rojo' ? 'rojo' : '');
+            var meta = 'Resumen ejecutivo';
+            if (portalId) meta += ' · Portal ' + portalId;
+            meta += ' · ' + (new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }));
+            document.getElementById('cover-meta').textContent = meta;
+
+            // Risk level
+            var riskBox = document.getElementById('risk-box');
+            var riskText = document.getElementById('risk-text');
+            if (score !== '') {
+                var s = parseInt(score, 10);
+                if (s >= 86) {
+                    riskBox.className = 'risk-box risk-bajo';
+                    riskText.textContent = 'Riesgo bajo. La operación comercial y la calidad de los datos permiten tomar decisiones con confianza. Se recomienda mantener la disciplina actual y revisar este diagnóstico de forma periódica.';
+                } else if (s >= 66) {
+                    riskBox.className = 'risk-box risk-medio';
+                    riskText.textContent = 'Riesgo medio. Existen áreas de mejora que conviene atender para evitar que se conviertan en riesgos operativos. Abordar los hallazgos reforzará la confiabilidad del CRM y del pipeline.';
+                } else {
+                    riskBox.className = 'risk-box risk-alto';
+                    riskText.textContent = 'Riesgo alto. El análisis identifica riesgos operativos que pueden afectar la precisión del pipeline, la asignación comercial y la confiabilidad de los reportes. Se recomienda priorizar las acciones del plan.';
+                }
+            } else {
+                riskText.textContent = 'No hay datos de score disponibles.';
+            }
+
+            // Top 5
+            var top5 = [];
+            try { top5 = JSON.parse(decodeURIComponent(top5Raw)); } catch (e) {}
+            var tbody = document.getElementById('top5-body');
+            tbody.innerHTML = '';
+            if (top5.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3">No hay problemas registrados en este informe.</td></tr>';
+            } else {
+                top5.forEach(function(item, i) {
+                    var tr = document.createElement('tr');
+                    var sev = (item.severity || '').toLowerCase();
+                    var sevClass = sev === 'critical' ? 'severity-critical' : sev === 'warning' ? 'severity-warning' : 'severity-info';
+                    tr.innerHTML = '<td>' + (i + 1) + '</td><td>' + (item.title || '—') + '</td><td class="' + sevClass + '">' + (item.severity || '—') + '</td>';
+                    tbody.appendChild(tr);
+                });
+            }
+
+            // Impact
+            var fmt = function(n) { return parseInt(n, 10).toLocaleString('es-ES') + ' €'; };
+            document.getElementById('impact-monthly').textContent = impactMonthly ? (fmt(impactMonthly) + '/mes') : '—';
+            document.getElementById('impact-yearly').textContent = impactYearly ? (fmt(impactYearly) + '/año') : '—';
+        })();
+    </script>
+</body>
+</html>
