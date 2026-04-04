@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vista previa — lista HubSpot</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #f5f5f5;
+      color: #1a1a1a;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; }
+    h1 { font-size: 1.15rem; color: #0091AE; margin: 0 0 8px; }
+    .sub { font-size: 0.85rem; color: #64748b; margin-bottom: 16px; }
+    .banner {
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.85rem;
+      margin-bottom: 16px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+    th, td { padding: 10px 12px; text-align: left; font-size: 0.875rem; border-bottom: 1px solid #e5e7eb; }
+    th { background: #0091AE; color: #fff; font-weight: 600; }
+    tr:last-child td { border-bottom: none; }
+    a.link { color: #0091AE; font-weight: 500; text-decoration: none; }
+    a.link:hover { text-decoration: underline; }
+    .actions {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    button.primary {
+      background: #0091AE;
+      color: #fff;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .err { background: #fef2f2; color: #b91c1c; padding: 12px; border-radius: 8px; margin-top: 12px; }
+    .ok { background: #ecfdf5; color: #047857; padding: 12px; border-radius: 8px; margin-top: 12px; font-size: 0.9rem; }
+    .loading { padding: 24px; text-align: center; color: #64748b; }
+  </style>
+</head>
+<body>
+  <div class="wrap" id="root">
+    <div class="loading">Cargando vista previa…</div>
+  </div>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const portalId = params.get('portalId');
+    const listId = params.get('listId');
+    const API = 'https://cwa.estado7.com';
+
+    function esc(s) {
+      if (s == null) return '';
+      const t = String(s);
+      return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    async function load() {
+      const root = document.getElementById('root');
+      if (!portalId || !listId) {
+        root.innerHTML = '<div class="err">Faltan portalId o listId en la URL.</div>';
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API}/api/lists/preview?portalId=${encodeURIComponent(portalId)}&listId=${encodeURIComponent(listId)}&limit=10`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || res.statusText || 'Error al cargar');
+        }
+
+        const cols = data.columns || [];
+        const rows = data.rows || [];
+        const listName = data.listName || listId;
+
+        let tableHtml = '<table><thead><tr>';
+        cols.forEach(c => { tableHtml += `<th>${esc(c.label)}</th>`; });
+        tableHtml += '<th>HubSpot</th></tr></thead><tbody>';
+
+        if (rows.length === 0) {
+          tableHtml += `<tr><td colspan="${cols.length + 1}" style="text-align:center;color:#64748b;">No hay registros que coincidan en este momento (o la muestra está vacía).</td></tr>`;
+        } else {
+          rows.forEach(row => {
+            tableHtml += '<tr>';
+            cols.forEach(c => {
+              const v = row[c.key];
+              tableHtml += `<td>${esc(v)}</td>`;
+            });
+            tableHtml += `<td><a class="link" href="${esc(row.url)}" target="_blank" rel="noopener">Abrir →</a></td>`;
+            tableHtml += '</tr>';
+          });
+        }
+        tableHtml += '</tbody></table>';
+
+        root.innerHTML = `
+          <h1>${esc(listName)}</h1>
+          <p class="sub">Vista previa: hasta ${data.previewLimit || 10} registros. La lista dinámica en HubSpot incluirá todos los que cumplan los criterios.</p>
+          <div class="banner">Portal ${esc(portalId)} · listId <code>${esc(listId)}</code></div>
+          ${tableHtml}
+          <div class="actions">
+            <button type="button" class="primary" id="btnCreate">Crear lista en HubSpot</button>
+          </div>
+          <div id="msg"></div>
+        `;
+
+        document.getElementById('btnCreate').addEventListener('click', async () => {
+          const btn = document.getElementById('btnCreate');
+          const msg = document.getElementById('msg');
+          btn.disabled = true;
+          msg.innerHTML = '';
+          try {
+            const cr = await fetch(`${API}/api/lists/create`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ portalId, listIds: [listId] }),
+            });
+            const body = await cr.json().catch(() => ({}));
+            if (!cr.ok) {
+              throw new Error(body.message || body.error || cr.statusText);
+            }
+            const r = (body.results && body.results[0]) || {};
+            if (r.success && r.url) {
+              msg.innerHTML = `<div class="ok">Lista creada. <a class="link" href="${esc(r.url)}" target="_blank" rel="noopener">Abrir en HubSpot →</a></div>`;
+            } else {
+              msg.innerHTML = `<div class="ok">${esc(r.error || 'Respuesta recibida. Revisa HubSpot > Listas.')}</div>`;
+            }
+          } catch (e) {
+            msg.innerHTML = `<div class="err">${esc(e.message || 'Error al crear la lista')}</div>`;
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      } catch (e) {
+        root.innerHTML = `<div class="err">${esc(e.message || 'Error')}</div>`;
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>

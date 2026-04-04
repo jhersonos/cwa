@@ -172,6 +172,9 @@
     </div>
 
     <script>
+        /** Máximo de filas en tablas (vista previa en modal) */
+        const PREVIEW_LIMIT = 10;
+
         // Obtener parámetros de URL
         const urlParams = new URLSearchParams(window.location.search);
         const type = urlParams.get('type');
@@ -302,7 +305,7 @@
                 const contactsRes = await fetch(`https://cwa.estado7.com/api/contacts/incomplete?portalId=${portalId}`);
                 if (contactsRes.ok) {
                     const contactsData = await contactsRes.json();
-                    const contacts = contactsData.contacts || [];
+                    const contacts = (contactsData.contacts || []).slice(0, PREVIEW_LIMIT);
                     
                     if (contacts.length > 0) {
                         contactsTable = `
@@ -565,7 +568,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                ${deals.items.map(deal => `
+                                ${deals.items.slice(0, PREVIEW_LIMIT).map(deal => `
                                     <tr>
                                         <td>${deal.name}</td>
                                         <td>${deal.stage || 'Sin etapa'}</td>
@@ -628,7 +631,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                ${deals.items.map(deal => `
+                                ${deals.items.slice(0, PREVIEW_LIMIT).map(deal => `
                                     <tr>
                                         <td>${deal.name}</td>
                                         <td>${deal.stage || 'Sin etapa'}</td>
@@ -690,7 +693,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                ${deals.items.map(deal => `
+                                ${deals.items.slice(0, PREVIEW_LIMIT).map(deal => `
                                     <tr>
                                         <td>${deal.name}</td>
                                         <td>${deal.stage || 'Sin etapa'}</td>
@@ -750,7 +753,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                ${deals.items.map(deal => `
+                                ${deals.items.slice(0, PREVIEW_LIMIT).map(deal => `
                                     <tr>
                                         <td>${deal.name}</td>
                                         <td>${deal.stage || 'Sin etapa'}</td>
@@ -978,7 +981,7 @@
                 ${unusedCount > 0 ? `
                     <h2 style="margin-top: 30px; margin-bottom: 15px;">🔴 Herramientas sin usar detectadas:</h2>
                     <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;">
-                        ${tools.notInUse.map(tool => `
+                        ${tools.notInUse.slice(0, PREVIEW_LIMIT).map(tool => `
                             <div style="padding: 8px 16px; background: #fee; border: 1px solid #fcc; border-radius: 6px; font-weight: 500;">
                                 ${tool.tool}
                             </div>
@@ -989,7 +992,7 @@
                 ${tools.inUse?.length > 0 ? `
                     <h2 style="margin-top: 30px; margin-bottom: 15px;">✅ Herramientas en uso:</h2>
                     <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                        ${tools.inUse.map(tool => `
+                        ${tools.inUse.slice(0, PREVIEW_LIMIT).map(tool => `
                             <div style="padding: 8px 16px; background: #efe; border: 1px solid #cfc; border-radius: 6px; font-weight: 500;">
                                 ${tool.tool}
                             </div>

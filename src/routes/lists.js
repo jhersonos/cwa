@@ -1,4 +1,5 @@
 import { refreshPortalToken } from "../services/hubspot/refreshToken.service.js";
+import { getListPreview } from "../services/listsPreview.service.js";
 
 /**
  * ========================================
@@ -8,6 +9,40 @@ import { refreshPortalToken } from "../services/hubspot/refreshToken.service.js"
 
 const listsRoutes = async (fastify, options) => {
   
+  /**
+   * GET /api/lists/preview
+   * Hasta 10 registros de muestra para un listId (misma lógica que las listas dinámicas).
+   */
+  fastify.get("/api/lists/preview", async (req, reply) => {
+    try {
+      const portalId = req.query?.portalId;
+      const listId = req.query?.listId;
+      const limit = req.query?.limit ? parseInt(String(req.query.limit), 10) : 10;
+
+      if (!portalId || !listId) {
+        return reply.code(400).send({
+          error: "Se requiere portalId y listId",
+        });
+      }
+
+      const token = await refreshPortalToken(fastify, portalId);
+      if (!token) {
+        return reply.code(401).send({
+          error: "No se pudo obtener access token para este portal",
+        });
+      }
+
+      const data = await getListPreview(fastify, portalId, listId, token, limit);
+      return reply.send(data);
+    } catch (err) {
+      const status = err.statusCode || 500;
+      fastify.log.error({ err }, "GET /api/lists/preview");
+      return reply.code(status).send({
+        error: err.message || "Error al obtener vista previa",
+      });
+    }
+  });
+
   /**
    * POST /api/lists/create
    * Crea listas activas en HubSpot basadas en los problemas detectados
