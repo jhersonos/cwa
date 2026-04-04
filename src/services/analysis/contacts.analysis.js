@@ -1,22 +1,118 @@
 // src/services/analysis/contacts.analysis.js
 import { fetchAllContacts } from "../hubspot/contacts.service.js";
+import {
+  crmSearchTotal,
+  filterAllRecords,
+  msAgo,
+} from "../hubspot/crmSearchTotals.service.js";
 
 /**
  * CONTACT QUALITY ANALYSIS (V3)
- * ✅ V1 SAFE
- * - No penaliza cuentas vacías
- * - Solo marca visibilidad limitada ante errores reales
- * - Marketplace friendly
+ * Prioridad: conteos globales vía CRM Search (`total`), sin paginar toda la base.
+ * Fallback: muestra acotada si Search falla (permisos / índice).
  */
 export async function analyzeContacts(fastify, portalId, token) {
+  const staleCutoffMs = msAgo(180);
+
+  const [totalAll, noEmail, noPhone, noLife, stale] = await Promise.all([
+    crmSearchTotal(token, "contacts", filterAllRecords()),
+    crmSearchTotal(token, "contacts", [
+      {
+        filters: [{ propertyName: "email", operator: "NOT_HAS_PROPERTY" }],
+      },
+    ]),
+    crmSearchTotal(token, "contacts", [
+      {
+        filters: [
+          { propertyName: "phone", operator: "NOT_HAS_PROPERTY" },
+          { propertyName: "mobilephone", operator: "NOT_HAS_PROPERTY" },
+        ],
+      },
+    ]),
+    crmSearchTotal(token, "contacts", [
+      {
+        filters: [
+          { propertyName: "lifecyclestage", operator: "NOT_HAS_PROPERTY" },
+        ],
+      },
+    ]),
+    crmSearchTotal(token, "contacts", [
+      {
+        filters: [
+          {
+            propertyName: "hs_lastmodifieddate",
+            operator: "LT",
+            value: staleCutoffMs,
+          },
+        ],
+      },
+    ]),
+  ]);
+
+  const searchFailed =
+    totalAll == null ||
+    noEmail == null ||
+    noPhone == null ||
+    noLife == null ||
+    stale == null;
+
+  if (searchFailed) {
+    fastify.log.warn(
+      { portalId },
+      "Contacts: CRM Search totals unavailable, using sample fallback"
+    );
+    return analyzeContactsSample(fastify, portalId, token);
+  }
+
+  const total = totalAll;
+
+  if (total === 0) {
+    return {
+      total: 0,
+      withoutEmail: 0,
+      withoutPhone: 0,
+      withoutLifecycle: 0,
+      stale: 0,
+      score: 70,
+      limitedVisibility: false,
+      visibilityError: false,
+      countsSource: "crm_search",
+    };
+  }
+
+  const withoutEmail = noEmail;
+  const withoutPhone = noPhone;
+  const withoutLifecycle = noLife;
+  const staleCount = stale;
+
+  let score = 100;
+  if (withoutEmail / total > 0.2) score -= 15;
+  if (withoutPhone / total > 0.3) score -= 10;
+  if (withoutLifecycle / total > 0.3) score -= 20;
+  if (staleCount / total > 0.25) score -= 15;
+  score = Math.max(40, Math.round(score));
+
+  return {
+    total,
+    withoutEmail,
+    withoutPhone,
+    withoutLifecycle,
+    stale: staleCount,
+    score,
+    limitedVisibility: false,
+    visibilityError: false,
+    countsSource: "crm_search",
+  };
+}
+
+async function analyzeContactsSample(fastify, portalId, token) {
   let contacts = [];
   let limitedVisibility = false;
   let visibilityError = false;
 
   try {
-    // 🔒 Sample controlado para evitar timeouts
     contacts = await fetchAllContacts(fastify, portalId, token, {
-      limit: 100 // 🚀 Máximo 100 para velocidad extrema
+      limit: 100,
     });
 
     if (!Array.isArray(contacts)) {
@@ -26,14 +122,11 @@ export async function analyzeContacts(fastify, portalId, token) {
     }
   } catch (err) {
     const status = err?.response?.status;
-
-    // 🚫 Permisos / rate limit → visibilidad limitada REAL
     if (status === 401 || status === 403 || status === 429) {
       limitedVisibility = true;
       visibilityError = true;
       contacts = [];
     } else {
-      // 🔥 Error inesperado → log, pero no romper el scan
       fastify.log.error(
         { err, portalId },
         "Contact analysis failed unexpectedly"
@@ -46,9 +139,6 @@ export async function analyzeContacts(fastify, portalId, token) {
 
   const total = contacts.length;
 
-  /* --------------------------------------------------
-     🟢 CUENTA VACÍA ≠ ERROR
-  -------------------------------------------------- */
   if (total === 0) {
     return {
       total: 0,
@@ -56,9 +146,10 @@ export async function analyzeContacts(fastify, portalId, token) {
       withoutPhone: 0,
       withoutLifecycle: 0,
       stale: 0,
-      score: 70,                 // baseline conservador
-      limitedVisibility: false,  // ✅ NO es error
-      visibilityError: false
+      score: 70,
+      limitedVisibility: false,
+      visibilityError: false,
+      countsSource: "sample",
     };
   }
 
@@ -71,30 +162,21 @@ export async function analyzeContacts(fastify, portalId, token) {
 
   for (const c of contacts) {
     const p = c.properties || {};
-
     if (!p.email) withoutEmail++;
     if (!p.phone && !p.mobilephone) withoutPhone++;
     if (!p.lifecyclestage) withoutLifecycle++;
-
     if (p.hs_lastmodifieddate) {
       const last = new Date(p.hs_lastmodifieddate).getTime();
       if (last < sixMonthsAgo) stale++;
     }
   }
 
-  /* --------------------------------------------------
-     🎯 SCORE (NORMALIZADO)
-  -------------------------------------------------- */
   let score = 100;
-
   if (withoutEmail / total > 0.2) score -= 15;
   if (withoutPhone / total > 0.3) score -= 10;
   if (withoutLifecycle / total > 0.3) score -= 20;
   if (stale / total > 0.25) score -= 15;
-
-  // ⛔ Penalización SOLO si hubo error real
   if (visibilityError) score -= 10;
-
   score = Math.max(40, Math.round(score));
 
   return {
@@ -105,6 +187,7 @@ export async function analyzeContacts(fastify, portalId, token) {
     stale,
     score,
     limitedVisibility: visibilityError,
-    visibilityError
+    visibilityError,
+    countsSource: "sample",
   };
 }

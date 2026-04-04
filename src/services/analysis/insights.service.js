@@ -5,6 +5,21 @@
  * Enfoque: Gobernanza, eficiencia comercial y adopción real de herramientas
  */
 
+/** Texto según origen de conteos: Search global vs muestra acotada (fallback). */
+function scopeContacts(countsSource, total) {
+  if (countsSource === "crm_search" || countsSource === "crm_search_partial") {
+    return `sobre ${total} contactos en la cuenta`;
+  }
+  return `en una muestra de ${total} contactos`;
+}
+
+function scopeDeals(countsSource, total) {
+  if (countsSource === "crm_search" || countsSource === "crm_search_partial") {
+    return `sobre ${total} deals en la cuenta`;
+  }
+  return `en una muestra de ${total} deals`;
+}
+
 export function generateInsights({ efficiency, contacts, users, deals, companies, tools }) {
   const insights = [];
 
@@ -21,8 +36,8 @@ export function generateInsights({ efficiency, contacts, users, deals, companies
         id: "contacts-no-email-critical",
         severity: "critical",
         urgency: "alta",
-        title: `${percentage}% de contactos sin email (detectado en muestra de ${contacts.total})`,
-        description: `Este patrón, detectado en la muestra analizada, indica que ${percentage}% de tu base de contactos no tiene email, bloqueando completamente email marketing, nurturing automatizado y seguimiento comercial efectivo.`,
+        title: `${percentage}% de contactos sin email (${scopeContacts(contacts.countsSource, contacts.total)})`,
+        description: `Este patrón indica que ${percentage}% de tu base de contactos no tiene email, bloqueando completamente email marketing, nurturing automatizado y seguimiento comercial efectivo.`,
         businessImpact: "Bloquea campañas de email, workflows automatizados y reduce dramáticamente las oportunidades de conversión. Los contactos sin email son prácticamente invisibles para tu estrategia de marketing.",
         recommendation: "1) Audita fuentes de captación sin validación de email. 2) Implementa formularios con email obligatorio. 3) Considera enriquecimiento de datos con herramientas como Clearbit o ZoomInfo.",
         relatedModule: "contacts"
@@ -32,8 +47,8 @@ export function generateInsights({ efficiency, contacts, users, deals, companies
         id: "contacts-no-email-warning",
         severity: "warning",
         urgency: "media",
-        title: `${percentage}% de contactos sin email (muestra: ${contacts.total})`,
-        description: `Patrón detectado en muestra: ${contacts.withoutEmail} contactos no tienen email registrado, limitando alcance de automatización y seguimiento.`,
+        title: `${percentage}% de contactos sin email (${scopeContacts(contacts.countsSource, contacts.total)})`,
+        description: `${contacts.withoutEmail} contactos no tienen email registrado, limitando alcance de automatización y seguimiento.`,
         businessImpact: "Reduce efectividad de campañas y workflows. Afecta scoring y segmentación de leads.",
         recommendation: "Revisa procesos de captura de leads y asegura validación de email en todos los puntos de entrada.",
         relatedModule: "contacts"
@@ -164,8 +179,8 @@ export function generateInsights({ efficiency, contacts, users, deals, companies
           id: "deals-no-contact-critical",
           severity: "critical",
           urgency: "alta",
-          title: `${percentage}% de deals sin contacto (detectado en muestra de ${deals.total})`,
-          description: `Este patrón crítico detectado en la muestra indica que ${percentage}% de deals no tienen contacto asociado, creando deals huérfanos imposibles de gestionar efectivamente.${volumeContext}`,
+          title: `${percentage}% de deals sin contacto (${scopeDeals(deals.countsSource, deals.total)})`,
+          description: `Este patrón crítico indica que ${percentage}% de deals no tienen contacto asociado, creando deals huérfanos imposibles de gestionar efectivamente.${volumeContext}`,
           businessImpact: "Deals sin contacto bloquean comunicación, seguimiento y nurturing automatizado. Genera pérdida directa de oportunidades por falta de contexto del lead.",
           recommendation: "1) Bloquea creación de deals sin contacto mediante validaciones. 2) Crea workflow de alerta para deals huérfanos. 3) Audita deals existentes y asocia contactos manualmente.",
           relatedModule: "deals"

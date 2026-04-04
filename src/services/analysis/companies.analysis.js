@@ -1,12 +1,13 @@
 // src/services/analysis/companies.analysis.js
 import axios from "axios";
+import {
+  crmSearchTotal,
+  filterAllRecords,
+  msAgo,
+} from "../hubspot/crmSearchTotals.service.js";
 
 const HUBSPOT_API = "https://api.hubapi.com";
 const THREE_MONTHS = 90 * 24 * 60 * 60 * 1000;
-
-/* ----------------------------------
-   HELPERS
----------------------------------- */
 
 function calculateScore(percentage) {
   if (percentage === 0) return 100;
@@ -15,52 +16,163 @@ function calculateScore(percentage) {
   return 30;
 }
 
-function normalizeCompany(company) {
-  const props = company.properties || {};
+export async function analyzeCompanies(fastify, portalId, token) {
+  const inactiveCutoffMs = msAgo(90);
+
+  const [totalAll, noDomain, noOwner, noPhone, inactive] = await Promise.all([
+    crmSearchTotal(token, "companies", filterAllRecords()),
+    crmSearchTotal(token, "companies", [
+      { filters: [{ propertyName: "domain", operator: "NOT_HAS_PROPERTY" }] },
+    ]),
+    crmSearchTotal(token, "companies", [
+      {
+        filters: [
+          { propertyName: "hubspot_owner_id", operator: "NOT_HAS_PROPERTY" },
+        ],
+      },
+    ]),
+    crmSearchTotal(token, "companies", [
+      { filters: [{ propertyName: "phone", operator: "NOT_HAS_PROPERTY" }] },
+    ]),
+    crmSearchTotal(token, "companies", [
+      {
+        filters: [
+          {
+            propertyName: "hs_lastmodifieddate",
+            operator: "LT",
+            value: inactiveCutoffMs,
+          },
+        ],
+      },
+    ]),
+  ]);
+
+  const searchFailed =
+    totalAll == null ||
+    noDomain == null ||
+    noOwner == null ||
+    noPhone == null ||
+    inactive == null;
+
+  if (searchFailed) {
+    fastify.log.warn(
+      { portalId },
+      "Companies: CRM Search totals unavailable, using sample fallback"
+    );
+    return analyzeCompaniesSample(fastify, portalId, token);
+  }
+
+  const totalCompanies = totalAll;
+
+  if (totalCompanies === 0) {
+    return {
+      total: 0,
+      withoutDomain: {
+        count: 0,
+        percentage: 0,
+        score: 100,
+        items: [],
+      },
+      withoutOwner: {
+        count: 0,
+        percentage: 0,
+        score: 100,
+        items: [],
+      },
+      withoutPhone: {
+        count: 0,
+        percentage: 0,
+        score: 100,
+        items: [],
+      },
+      inactive: {
+        count: 0,
+        percentage: 0,
+        score: 100,
+        items: [],
+      },
+      averageActivities: 0,
+      limitedVisibility: false,
+      countsSource: "crm_search",
+    };
+  }
+
+  const withoutDomainCount = noDomain;
+  const withoutOwnerCount = noOwner;
+  const withoutPhoneCount = noPhone;
+  const inactiveCount = inactive;
+
+  const withoutDomainPercentage = Number(
+    ((withoutDomainCount / totalCompanies) * 100).toFixed(1)
+  );
+  const withoutOwnerPercentage = Number(
+    ((withoutOwnerCount / totalCompanies) * 100).toFixed(1)
+  );
+  const withoutPhonePercentage = Number(
+    ((withoutPhoneCount / totalCompanies) * 100).toFixed(1)
+  );
+  const inactivePercentage = Number(
+    ((inactiveCount / totalCompanies) * 100).toFixed(1)
+  );
 
   return {
-    id: company.id,
-    name: props.name || `Company ${company.id}`,
-    domain: props.domain || null,
-    owner: props.hubspot_owner_id || null,
-    lastModified: props.hs_lastmodifieddate || null
+    total: totalCompanies,
+    withoutDomain: {
+      count: withoutDomainCount,
+      percentage: withoutDomainPercentage,
+      score: calculateScore(withoutDomainPercentage),
+      items: [],
+    },
+    withoutOwner: {
+      count: withoutOwnerCount,
+      percentage: withoutOwnerPercentage,
+      score: calculateScore(withoutOwnerPercentage),
+      items: [],
+    },
+    withoutPhone: {
+      count: withoutPhoneCount,
+      percentage: withoutPhonePercentage,
+      score: calculateScore(withoutPhonePercentage),
+      items: [],
+    },
+    inactive: {
+      count: inactiveCount,
+      percentage: inactivePercentage,
+      score: calculateScore(inactivePercentage),
+      items: [],
+    },
+    averageActivities: 0,
+    limitedVisibility: false,
+    countsSource: "crm_search",
   };
 }
 
-/* ----------------------------------
-   MAIN ANALYSIS FUNCTION
----------------------------------- */
-
-export async function analyzeCompanies(fastify, portalId, token) {
+async function analyzeCompaniesSample(fastify, portalId, token) {
   let companies = [];
   let limitedVisibility = false;
 
   try {
-    const res = await axios.get(
-      `${HUBSPOT_API}/crm/v3/objects/companies`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`
-        },
-        params: {
-          limit: 50,
-          properties: [
-            "name",
-            "domain",
-            "hubspot_owner_id",
-            "hs_lastmodifieddate",
-            "phone",
-            "industry"
-          ].join(",")
-        },
-        timeout: 2500 // 🚀 Velocidad máxima
-      }
-    );
+    const res = await axios.get(`${HUBSPOT_API}/crm/v3/objects/companies`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      params: {
+        limit: 50,
+        properties: [
+          "name",
+          "domain",
+          "hubspot_owner_id",
+          "hs_lastmodifieddate",
+          "phone",
+          "industry",
+        ].join(","),
+      },
+      timeout: 2500,
+    });
 
     companies = res.data?.results || [];
   } catch (err) {
     const status = err?.response?.status;
-
     if (status === 401 || status === 403 || status === 429) {
       limitedVisibility = true;
       companies = [];
@@ -83,98 +195,65 @@ export async function analyzeCompanies(fastify, portalId, token) {
         count: 0,
         percentage: 0,
         score: 100,
-        items: []
+        items: [],
       },
       withoutOwner: {
         count: 0,
         percentage: 0,
         score: 100,
-        items: []
+        items: [],
       },
       withoutPhone: {
         count: 0,
         percentage: 0,
         score: 100,
-        items: []
+        items: [],
       },
       inactive: {
         count: 0,
         percentage: 0,
         score: 100,
-        items: []
+        items: [],
       },
-      limitedVisibility
+      averageActivities: 0,
+      limitedVisibility,
+      countsSource: "sample",
     };
   }
 
-  /* ----------------------------------
-     EMPRESAS SIN DOMINIO
-  ---------------------------------- */
+  const companiesWithoutDomain = companies.filter(
+    (c) => !c.properties?.domain
+  );
+  const companiesWithoutOwner = companies.filter(
+    (c) => !c.properties?.hubspot_owner_id
+  );
+  const companiesWithoutPhone = companies.filter(
+    (c) => !c.properties?.phone
+  );
 
-  const companiesWithoutDomain = companies
-    .filter(c => !c.properties?.domain)
-    .map(normalizeCompany);
+  const threeMonthsAgo = Date.now() - THREE_MONTHS;
+  const inactiveCompanies = companies.filter((c) => {
+    const lastMod = c.properties?.hs_lastmodifieddate;
+    if (!lastMod) return false;
+    return new Date(lastMod).getTime() < threeMonthsAgo;
+  });
 
   const withoutDomainCount = companiesWithoutDomain.length;
   const withoutDomainPercentage = Number(
     ((withoutDomainCount / totalCompanies) * 100).toFixed(1)
   );
-
-  /* ----------------------------------
-     EMPRESAS SIN OWNER
-  ---------------------------------- */
-
-  const companiesWithoutOwner = companies
-    .filter(c => !c.properties?.hubspot_owner_id)
-    .map(normalizeCompany);
-
   const withoutOwnerCount = companiesWithoutOwner.length;
   const withoutOwnerPercentage = Number(
     ((withoutOwnerCount / totalCompanies) * 100).toFixed(1)
   );
-
-  /* ----------------------------------
-     EMPRESAS SIN TELÉFONO
-  ---------------------------------- */
-
-  const companiesWithoutPhone = companies
-    .filter(c => !c.properties?.phone)
-    .map(normalizeCompany);
-
   const withoutPhoneCount = companiesWithoutPhone.length;
   const withoutPhonePercentage = Number(
     ((withoutPhoneCount / totalCompanies) * 100).toFixed(1)
   );
-
-  /* ----------------------------------
-     EMPRESAS INACTIVAS (3 MESES)
-  ---------------------------------- */
-
-  const threeMonthsAgo = Date.now() - THREE_MONTHS;
-  const inactiveCompanies = companies
-    .filter(c => {
-      const lastMod = c.properties?.hs_lastmodifieddate;
-      if (!lastMod) return false;
-      return new Date(lastMod).getTime() < threeMonthsAgo;
-    })
-    .map(normalizeCompany);
-
   const inactiveCount = inactiveCompanies.length;
   const inactivePercentage = Number(
     ((inactiveCount / totalCompanies) * 100).toFixed(1)
   );
-
-  /* ----------------------------------
-     PROMEDIO DE ACTIVIDADES POR COMPANY
-     🔴 DESHABILITADO - API no disponible en todas las cuentas
-     Error 400: This endpoint is only available for Enterprise accounts
-  ---------------------------------- */
-
-  const averageActivities = 0; // Deshabilitado para compatibilidad universal
-
-  /* ----------------------------------
-     RESPONSE
-  ---------------------------------- */
 
   return {
     total: totalCompanies,
@@ -182,28 +261,28 @@ export async function analyzeCompanies(fastify, portalId, token) {
       count: withoutDomainCount,
       percentage: withoutDomainPercentage,
       score: calculateScore(withoutDomainPercentage),
-      items: companiesWithoutDomain
+      items: [],
     },
     withoutOwner: {
       count: withoutOwnerCount,
       percentage: withoutOwnerPercentage,
       score: calculateScore(withoutOwnerPercentage),
-      items: companiesWithoutOwner
+      items: [],
     },
     withoutPhone: {
       count: withoutPhoneCount,
       percentage: withoutPhonePercentage,
       score: calculateScore(withoutPhonePercentage),
-      items: companiesWithoutPhone
+      items: [],
     },
     inactive: {
       count: inactiveCount,
       percentage: inactivePercentage,
       score: calculateScore(inactivePercentage),
-      items: inactiveCompanies
+      items: [],
     },
-    averageActivities,
-    limitedVisibility
+    averageActivities: 0,
+    limitedVisibility,
+    countsSource: "sample",
   };
 }
-

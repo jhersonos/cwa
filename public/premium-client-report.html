@@ -1,9 +1,10 @@
 <!DOCTYPE html>
+<!-- HubSpot UI: iframe en modal. No usar window.alert ni window.confirm. -->
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Informe cliente — Cost CRM Risk Scanner</title>
+  <title>Informe ejecutivo — Cost CRM Risk Scanner</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -160,14 +161,12 @@
         return;
       }
 
-      var mk = payload.marketing || {};
-
       var lvl = (payload.efficiency && payload.efficiency.level) || "Amarillo";
       var lvlClass =
         lvl === "Verde" ? "lv-verde" : lvl === "Rojo" ? "lv-rojo" : "lv-amarillo";
 
       var html = "";
-      html += "<h1>Informe para cliente</h1>";
+      html += "<h1>Informe ejecutivo</h1>";
       html +=
         '<p class="subtitle">Portal ' +
         (payload.portalId || "—") +
@@ -181,11 +180,13 @@
       html += '<div><span class="badge-level ' + lvlClass + '">Nivel: ' + lvl + "</span></div>";
       html += '<p class="note">' + (payload.note || "") + "</p>";
 
-      html += "<h2>Contactos (totales en muestra)</h2>";
+      html += "<h2>Contactos</h2>";
       html += "<table class='kpi'><thead><tr><th>Concepto</th><th class='num'>Cantidad</th></tr></thead><tbody>";
       var c = payload.contacts || {};
+      var regContactos =
+        c.registrosAnalizados != null ? c.registrosAnalizados : c.registrosEnMuestra;
       [
-        ["Registros en muestra", c.registrosEnMuestra],
+        ["Registros analizados", regContactos],
         ["Sin email", c.sinEmail],
         ["Sin teléfono", c.sinTelefono],
         ["Sin lifecycle", c.sinLifecycle],
@@ -199,8 +200,10 @@
       html += "<h2>Usuarios</h2>";
       html += "<table class='kpi'><thead><tr><th>Concepto</th><th class='num'>Cantidad</th></tr></thead><tbody>";
       var u = payload.users || {};
+      var usuariosTot =
+        u.usuariosEnAnalisis != null ? u.usuariosEnAnalisis : u.registradosEnMuestra;
       [
-        ["Usuarios en muestra", u.registradosEnMuestra],
+        ["Usuarios en el análisis", usuariosTot],
         ["Inactivos", u.inactivos],
       ].forEach(function (row) {
         if (row[1] === undefined || row[1] === null) return;
@@ -209,11 +212,13 @@
       html += "</tbody></table>";
 
       if (payload.deals) {
-        html += "<h2>Deals (totales en muestra)</h2>";
+        html += "<h2>Deals</h2>";
         html += "<table class='kpi'><thead><tr><th>Concepto</th><th class='num'>Cantidad</th></tr></thead><tbody>";
         var d0 = payload.deals;
+        var dealsTot =
+          d0.dealsAnalizados != null ? d0.dealsAnalizados : d0.muestraDeals;
         [
-          ["Deals en muestra", d0.muestraDeals],
+          ["Deals analizados", dealsTot],
           ["Sin contacto", d0.sinContacto],
           ["Sin owner", d0.sinOwner],
           ["Sin importe", d0.sinImporte],
@@ -227,11 +232,13 @@
       }
 
       if (payload.companies) {
-        html += "<h2>Empresas (totales en muestra)</h2>";
+        html += "<h2>Empresas</h2>";
         html += "<table class='kpi'><thead><tr><th>Concepto</th><th class='num'>Cantidad</th></tr></thead><tbody>";
         var co = payload.companies;
+        var empTot =
+          co.empresasAnalizadas != null ? co.empresasAnalizadas : co.muestraEmpresas;
         [
-          ["Empresas en muestra", co.muestraEmpresas],
+          ["Empresas analizadas", empTot],
           ["Sin dominio", co.sinDominio],
           ["Sin owner", co.sinOwner],
           ["Sin teléfono", co.sinTelefono],
@@ -252,7 +259,6 @@
       if (payload.deals) {
         html += '<p style="font-size:12px;color:#64748b;margin:16px 0 6px">Deals: incidencias (conteos)</p><div class="chart-box tall"><canvas id="ch-deals"></canvas></div>';
       }
-      html += '<p style="font-size:12px;color:#64748b;margin:16px 0 6px">Marketing: puntuación por módulo (0–100)</p><div class="chart-box tall"><canvas id="ch-mkt"></canvas></div>';
 
       html += "<h2>Impacto estimado (modelo interno)</h2>";
       var fin = payload.financial || {};
@@ -270,57 +276,6 @@
         });
       }
       html += "</ul>";
-
-      var hasMkt =
-        mk.emails || mk.forms || mk.leadScoring || mk.landing || mk.lists;
-      if (hasMkt) {
-        html += "<h2>Marketing (totales en muestra)</h2>";
-        html += "<table class='kpi'><thead><tr><th>Módulo</th><th class='num'>Métrica</th><th class='num'>Valor</th></tr></thead><tbody>";
-        function addRows(label, obj, pairs) {
-          if (!obj) return;
-          pairs.forEach(function (p) {
-            if (obj[p[1]] === undefined || obj[p[1]] === null) return;
-            html +=
-              "<tr><td>" +
-              label +
-              "</td><td>" +
-              p[0] +
-              "</td><td class='num'>" +
-              obj[p[1]] +
-              "</td></tr>";
-          });
-        }
-        addRows("Emails", mk.emails, [
-          ["Score", "score"],
-          ["Total analizados", "totalAnalizados"],
-          ["Sin envío 90+ días", "sinEnvio90"],
-          ["Apertura baja", "aperturaBaja"],
-        ]);
-        addRows("Formularios", mk.forms, [
-          ["Score", "score"],
-          ["Total", "total"],
-          ["Más de 8 campos", "masDe8Campos"],
-          ["Sin workflows", "sinWorkflows"],
-        ]);
-        addRows("Lead scoring", mk.leadScoring, [
-          ["Score", "score"],
-          ["Contactos", "contactos"],
-          ["Sin score", "sinScore"],
-        ]);
-        addRows("Landing", mk.landing, [
-          ["Score", "score"],
-          ["Total", "total"],
-          ["Sin actualización 180+ días", "sinActualizacion180"],
-          ["Sin formulario", "sinFormulario"],
-        ]);
-        addRows("Listas", mk.lists, [
-          ["Score", "score"],
-          ["Total", "total"],
-          ["Sin uso 90+ días", "sinUso90"],
-          ["Filtros vacíos", "filtrosVacios"],
-        ]);
-        html += "</tbody></table>";
-      }
 
       root.innerHTML = html;
 
@@ -414,46 +369,6 @@
           });
         }
       }
-
-      var mLabels = [];
-      var mScores = [];
-      if (mk.emails) {
-        mLabels.push("Emails");
-        mScores.push(mk.emails.score || 0);
-      }
-      if (mk.forms) {
-        mLabels.push("Formularios");
-        mScores.push(mk.forms.score || 0);
-      }
-      if (mk.leadScoring) {
-        mLabels.push("Lead sc.");
-        mScores.push(mk.leadScoring.score || 0);
-      }
-      if (mk.landing) {
-        mLabels.push("Landing");
-        mScores.push(mk.landing.score || 0);
-      }
-      if (mk.lists) {
-        mLabels.push("Listas");
-        mScores.push(mk.lists.score || 0);
-      }
-      if (mLabels.length === 0) {
-        mLabels = ["N/D"];
-        mScores = [0];
-      }
-      new Chart(document.getElementById("ch-mkt"), {
-        type: "bar",
-        data: {
-          labels: mLabels,
-          datasets: [{ label: "Score", data: mScores, backgroundColor: "#10b981" }],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: { y: { min: 0, max: 100 } },
-        },
-      });
     })();
   </script>
 </body>

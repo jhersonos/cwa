@@ -97,10 +97,14 @@ function calculatePriorityScore(insight) {
  * Genera resumen ejecutivo profesional
  */
 function generateExecutiveSummary(summary, insights) {
-  const samplingContext = "Cost CRM Risk Scanner realiza diagnóstico basado en muestreo inteligente: si un patrón aparece en la muestra, es muy probable que exista en el resto de la cuenta. ";
+  const samplingContext =
+    "Los conteos de contactos, empresas y deals se calculan con búsqueda CRM (totales en cuenta) cuando la API lo permite, sin paginar todo el inventario; si no, se usa una muestra acotada como respaldo. ";
 
   if (summary.critical === 0 && summary.warning === 0) {
-    return samplingContext + "La muestra analizada presenta indicadores saludables de gobernanza CRM. No se detectaron riesgos operativos críticos. Se recomienda mantener disciplina en procesos actuales y realizar revisiones trimestrales preventivas.";
+    return (
+      samplingContext +
+      "El análisis actual presenta indicadores saludables de gobernanza CRM. No se detectaron riesgos operativos críticos. Se recomienda mantener disciplina en procesos actuales y realizar revisiones trimestrales preventivas."
+    );
   }
 
   let executiveSummary = samplingContext;
