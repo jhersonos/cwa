@@ -48,46 +48,135 @@ export async function analyzeWorkflows(portalId, fastify) {
 }
 
 /**
- * Fetch todos los workflows (con paginación)
+ * Extrae el array de flows/workflows del body de HubSpot (v4 tiene varias formas).
  */
-async function fetchAllWorkflows(accessToken) {
-  try {
-    console.log(`📡 [Workflows] Llamando a HubSpot API (automation/v4/flows)...`);
-    
+function extractFlowsBatch(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  const batch =
+    data.results ||
+    data.workflows ||
+    data.flows ||
+    data.objects;
+  return Array.isArray(batch) ? batch : [];
+}
+
+/**
+ * GET /automation/v4/flows con paginación por cursor (after).
+ */
+async function fetchFlowsV4Paginated(accessToken) {
+  const all = [];
+  let after = undefined;
+  const maxPages = 50;
+
+  for (let page = 0; page < maxPages; page++) {
     const response = await axios.get(
       'https://api.hubapi.com/automation/v4/flows',
       {
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         },
         params: {
-          limit: 100
-        }
+          limit: 100,
+          ...(after ? { after } : {})
+        },
+        timeout: 30000
       }
     );
 
-    console.log(`✅ [Workflows] Respuesta recibida de HubSpot API`);
-    const raw = response.data.results || response.data.workflows || response.data || [];
-    return Array.isArray(raw) ? raw : [];
+    const data = response.data;
+    const batch = extractFlowsBatch(data);
+    all.push(...batch);
 
+    const nextAfter = data?.paging?.next?.after;
+    if (!nextAfter) break;
+    after = nextAfter;
+  }
+
+  return all;
+}
+
+/**
+ * GET /automation/v3/workflows (misma estrategia que scan CRM) — fallback si v4 falla.
+ */
+async function fetchWorkflowsV3Paginated(accessToken) {
+  const all = [];
+  let after = undefined;
+  const maxPages = 50;
+
+  for (let page = 0; page < maxPages; page++) {
+    const response = await axios.get(
+      'https://api.hubapi.com/automation/v3/workflows',
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        },
+        params: {
+          limit: 100,
+          ...(after ? { after } : {})
+        },
+        timeout: 30000
+      }
+    );
+
+    const data = response.data;
+    const batch = Array.isArray(data?.results) ? data.results : extractFlowsBatch(data);
+    all.push(...batch);
+
+    const nextAfter = data?.paging?.next?.after;
+    if (!nextAfter) break;
+    after = nextAfter;
+  }
+
+  return all;
+}
+
+function isAuthError(status) {
+  return status === 401 || status === 403;
+}
+
+/**
+ * Fetch todos los workflows: intenta v4, si falla usa v3 (portales donde v4 no responde bien).
+ */
+async function fetchAllWorkflows(accessToken) {
+  try {
+    console.log(`📡 [Workflows] Llamando a HubSpot API (automation/v4/flows)...`);
+    const flows = await fetchFlowsV4Paginated(accessToken);
+    console.log(`✅ [Workflows] v4: ${flows.length} workflows`);
+    return flows;
   } catch (error) {
-    console.error('❌ [Workflows] Error fetching workflows from HubSpot:');
-    console.error('   Status:', error.response?.status);
-    console.error('   Data:', error.response?.data);
-    console.error('   Message:', error.message);
-    
-    // Error específico de permisos
-    if (error.response?.status === 403) {
-      throw new Error('Permisos insuficientes. Verifica que la app tenga el scope "automation"');
-    }
-    
-    // Error específico de token inválido
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+    console.error('❌ [Workflows] v4 flows:', status, error.response?.data || error.message);
+
+    if (isAuthError(status)) {
+      if (status === 403) {
+        throw new Error('Permisos insuficientes. Verifica que la app tenga el scope "automation"');
+      }
       throw new Error('Token de acceso inválido o expirado. Reinstala la app.');
     }
-    
-    throw new Error(`Error al obtener workflows de HubSpot: ${error.response?.data?.message || error.message}`);
+
+    console.log(`📡 [Workflows] Fallback: automation/v3/workflows...`);
+    try {
+      const workflows = await fetchWorkflowsV3Paginated(accessToken);
+      console.log(`✅ [Workflows] v3: ${workflows.length} workflows`);
+      return workflows;
+    } catch (fallbackErr) {
+      const st = fallbackErr.response?.status;
+      console.error('❌ [Workflows] v3 workflows:', st, fallbackErr.response?.data || fallbackErr.message);
+      if (isAuthError(st)) {
+        if (st === 403) {
+          throw new Error('Permisos insuficientes. Verifica que la app tenga el scope "automation"');
+        }
+        throw new Error('Token de acceso inválido o expirado. Reinstala la app.');
+      }
+      const msg =
+        fallbackErr.response?.data?.message ||
+        error.response?.data?.message ||
+        fallbackErr.message ||
+        error.message;
+      throw new Error(`Error al obtener workflows de HubSpot: ${msg}`);
+    }
   }
 }
 
@@ -95,7 +184,11 @@ async function fetchAllWorkflows(accessToken) {
  * Calcula overview general
  */
 function isEnabled(w) {
-  return w.enabled === true || w.isEnabled === true;
+  if (!w) return false;
+  if (w.enabled === true || w.isEnabled === true) return true;
+  // API v3 (automation/v3/workflows)
+  if (w.state === 'ACTIVE') return true;
+  return false;
 }
 
 function toTimestamp(val) {
@@ -216,7 +309,10 @@ function detectWorkflowsSinGoals(workflows) {
   const sinGoals = workflows.filter(w => {
     if (!isEnabled(w)) return false;
 
-    const hasGoal = w.goalCriteria && w.goalCriteria.isEnabled === true;
+    const hasGoal =
+      w.goalCriteria &&
+      typeof w.goalCriteria === 'object' &&
+      w.goalCriteria.isEnabled === true;
     return !hasGoal;
   }).map(w => ({
     id: w.id,

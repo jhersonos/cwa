@@ -17,8 +17,12 @@ import { generateInsights } from "../services/analysis/insights.service.js";
 import { generatePrioritization } from "../services/analysis/prioritization.service.js";
 import { calculateAllTrafficLights } from "../services/analysis/trafficLight.service.js";
 
-import { saveScanSnapshot } from "../services/history/history.service.js";
+import {
+  saveScanSnapshot,
+  getFreeScanQuota
+} from "../services/history/history.service.js";
 import { calculateBenchmark } from "../services/analysis/benchmark.service.js";
+import { checkUnlockStatus } from "../services/unlock/token.service.js";
 
 /**
  * 🔒 SCAN V3 — MARKETPLACE SAFE
@@ -33,6 +37,26 @@ export async function runScanV3(req, reply) {
   const start = Date.now();
 
   try {
+    /* ------------------------
+       FREE TIER: máx. 1 análisis / semana si no hay desbloqueo.
+       Pro / auditoría desbloqueada: checkUnlockStatus.unlocked → sin cuota (getFreeScanQuota).
+    ------------------------ */
+    const unlockStatus = await checkUnlockStatus(req.server, portalId);
+    const quota = await getFreeScanQuota(
+      req.server,
+      portalId,
+      Boolean(unlockStatus.unlocked)
+    );
+    if (!quota.allowed) {
+      return reply.code(429).send({
+        error: "SCAN_COOLDOWN",
+        message:
+          "El análisis gratuito está limitado a una vez por semana. Podrás volver a ejecutarlo a partir de la fecha indicada, o desbloquear la auditoría completa para análisis ilimitados.",
+        nextAllowedAt: quota.nextAllowedAt,
+        lastScanAt: quota.lastScanAt
+      });
+    }
+
     /* ------------------------
        AUTH
     ------------------------ */

@@ -1,5 +1,6 @@
 // src/routes/unlock.js
 import { validateUnlockToken, checkUnlockStatus, logDownload } from "../services/unlock/token.service.js";
+import { getFreeScanQuota } from "../services/history/history.service.js";
 import { 
   generateAuditSummaryXLSX,
   generateDealsWithoutOwnerXLSX,
@@ -122,10 +123,26 @@ export default async function unlockRoutes(fastify) {
 
     try {
       const status = await checkUnlockStatus(fastify, portalId);
-      return reply.send(status);
+      const quota = await getFreeScanQuota(
+        fastify,
+        portalId,
+        Boolean(status.unlocked)
+      );
+      return reply.send({
+        ...status,
+        freeScanAllowed: quota.allowed,
+        nextFreeScanAt: quota.nextAllowedAt,
+        lastFreeScanAt: quota.lastScanAt
+      });
     } catch (error) {
       fastify.log.error({ err: error, portalId }, "Error checking unlock status");
-      return reply.send({ unlocked: false, expiresAt: null });
+      return reply.send({
+        unlocked: false,
+        expiresAt: null,
+        freeScanAllowed: true,
+        nextFreeScanAt: null,
+        lastFreeScanAt: null
+      });
     }
   });
 

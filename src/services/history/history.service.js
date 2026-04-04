@@ -1,5 +1,53 @@
 // src/services/history/history.service.js
 
+/** Ventana mínima entre análisis gratuitos (cuentas sin auditoría desbloqueada): 7 días */
+export const FREE_SCAN_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Última ejecución de scan guardada en historial (para cuota free).
+ */
+export async function getLastScanAt(server, portalId) {
+  try {
+    const [rows] = await server.db.query(
+      `
+      SELECT MAX(created_at) AS last_at
+      FROM scan_history
+      WHERE portal_id = ?
+      `,
+      [portalId]
+    );
+    const raw = rows[0]?.last_at;
+    if (raw == null) return null;
+    const d = raw instanceof Date ? raw : new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  } catch (err) {
+    server.log.warn({ err, portalId }, "getLastScanAt failed (non-blocking)");
+    return null;
+  }
+}
+
+/**
+ * Cuota de análisis gratuito (1/semana) solo para cuentas FREE.
+ * Plan Pro / auditoría desbloqueada (token activo): sin límite — isUnlocked === true → siempre allowed.
+ * @returns {{ allowed: boolean, nextAllowedAt: string | null, lastScanAt: string | null }}
+ */
+export async function getFreeScanQuota(server, portalId, isUnlocked) {
+  if (isUnlocked) {
+    return { allowed: true, nextAllowedAt: null, lastScanAt: null };
+  }
+  const last = await getLastScanAt(server, portalId);
+  if (!last) {
+    return { allowed: true, nextAllowedAt: null, lastScanAt: null };
+  }
+  const next = new Date(last.getTime() + FREE_SCAN_COOLDOWN_MS);
+  const allowed = Date.now() >= next.getTime();
+  return {
+    allowed,
+    nextAllowedAt: allowed ? null : next.toISOString(),
+    lastScanAt: last.toISOString()
+  };
+}
+
 /**
  * Guarda o actualiza el snapshot diario del scan
  * - Máx 1 registro por portal por día
