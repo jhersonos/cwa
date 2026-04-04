@@ -1,11 +1,14 @@
 <!DOCTYPE html>
-<!-- HubSpot UI: iframe en modal. No usar window.alert ni window.confirm. -->
+<!--
+  Impresión/PDF: abrir en pestaña completa (p. ej. desde la app con window.open).
+  Si se carga en iframe sandbox de HubSpot, window.print() suele ignorarse (sin allow-modals).
+-->
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Informe ejecutivo — Cost CRM Risk Scanner</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -130,17 +133,69 @@
       box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
     }
     .no-print:hover { background: #1e293b; }
+    .iframe-tip {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      padding: 12px 16px;
+      background: #fef3c7;
+      color: #78350f;
+      font-size: 13px;
+      border-bottom: 1px solid #fcd34d;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      justify-content: center;
+      text-align: center;
+    }
+    .iframe-tip button {
+      padding: 8px 14px;
+      background: #b45309;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .iframe-tip button:hover { background: #92400e; }
+    body.has-iframe-tip .no-print { top: 58px; }
     .err { color: #b91c1c; padding: 20px; }
   </style>
 </head>
 <body>
-  <button type="button" class="no-print" onclick="window.print()">Imprimir / Guardar PDF</button>
+  <div id="iframe-tip" class="no-print iframe-tip" style="display: none" role="status">
+    <span>El visor embebido de HubSpot bloquea el cuadro de impresión. Abre el informe en una pestaña nueva.</span>
+    <button type="button" id="btn-open-tab">Abrir en pestaña nueva</button>
+  </div>
+  <button type="button" class="no-print" id="btn-print" onclick="window.print()">Imprimir / Guardar PDF</button>
   <div class="wrap" id="root">
     <p class="err" id="err-msg" style="display:none">No se pudo cargar el informe. Vuelve a abrirlo desde la app.</p>
   </div>
 
   <script>
     (function () {
+      var tip = document.getElementById("iframe-tip");
+      var btnTab = document.getElementById("btn-open-tab");
+      var inIframe = false;
+      try {
+        inIframe = window.self !== window.top;
+      } catch (e) {
+        inIframe = true;
+      }
+      if (inIframe && tip) {
+        tip.style.display = "flex";
+        document.body.classList.add("has-iframe-tip");
+      }
+      if (btnTab) {
+        btnTab.addEventListener("click", function () {
+          window.open(window.location.href, "_blank", "noopener,noreferrer");
+        });
+      }
+
       var params = new URLSearchParams(window.location.search);
       var d = params.get("d");
       var root = document.getElementById("root");
