@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Informe cliente — Cost CRM Risk Scanner</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: #0f172a;
+      background: #f8fafc;
+      line-height: 1.45;
+      padding: 0 0 48px;
+    }
+    .wrap {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px 24px 40px;
+      background: #fff;
+      min-height: 100vh;
+    }
+    @media print {
+      body { background: #fff; }
+      .wrap { padding: 12mm; max-width: none; }
+      .no-print { display: none !important; }
+      .page-break { page-break-before: always; }
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+    .subtitle { color: #64748b; font-size: 13px; margin-bottom: 20px; }
+    h2 {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #475569;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 8px;
+      margin: 28px 0 14px;
+    }
+    .cover-score {
+      font-size: 56px;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1;
+    }
+    .badge-level {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .lv-verde { background: #dcfce7; color: #166534; }
+    .lv-amarillo { background: #fef9c3; color: #854d0e; }
+    .lv-rojo { background: #fee2e2; color: #991b1b; }
+    .note {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 16px;
+      padding: 12px 14px;
+      background: #f1f5f9;
+      border-radius: 8px;
+      border-left: 4px solid #94a3b8;
+    }
+    table.kpi {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    table.kpi th {
+      text-align: left;
+      padding: 10px 12px;
+      background: #f8fafc;
+      color: #475569;
+      font-weight: 600;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    table.kpi td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    table.kpi td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+    .chart-box {
+      position: relative;
+      height: 260px;
+      margin: 16px 0 8px;
+    }
+    .chart-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 12px;
+    }
+    @media (max-width: 720px) {
+      .chart-row { grid-template-columns: 1fr; }
+    }
+    .chart-box.tall { height: 280px; }
+    ul.titles {
+      margin: 10px 0 0 18px;
+      font-size: 13px;
+      color: #334155;
+    }
+    ul.titles li { margin-bottom: 6px; }
+    .fin {
+      margin-top: 8px;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .fin small { display: block; font-size: 13px; font-weight: 500; color: #64748b; margin-top: 4px; }
+    .no-print {
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      z-index: 10;
+      padding: 12px 20px;
+      background: #0f172a;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
+    }
+    .no-print:hover { background: #1e293b; }
+    .err { color: #b91c1c; padding: 20px; }
+  </style>
+</head>
+<body>
+  <button type="button" class="no-print" onclick="window.print()">Imprimir / Guardar PDF</button>
+  <div class="wrap" id="root">
+    <p class="err" id="err-msg" style="display:none">No se pudo cargar el informe. Vuelve a abrirlo desde la app.</p>
+  </div>
+
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var d = params.get("d");
+      var root = document.getElementById("root");
+      var err = document.getElementById("err-msg");
+      if (!d) {
+        err.style.display = "block";
+        return;
+      }
+      var payload;
+      try {
+        payload = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(d)))));
+      } catch (e) {
+        err.style.display = "block";
+        return;
+      }
+      if (!payload || payload.v !== 1) {
+        err.style.display = "block";
+        return;
+      }
+
+      var mk = payload.marketing || {};
+
+      var lvl = (payload.efficiency && payload.efficiency.level) || "Amarillo";
+      var lvlClass =
+        lvl === "Verde" ? "lv-verde" : lvl === "Rojo" ? "lv-rojo" : "lv-amarillo";
+
+      var html = "";
+      html += "<h1>Informe para cliente</h1>";
+      html +=
+        '<p class="subtitle">Portal ' +
+        (payload.portalId || "—") +
+        " · " +
+        new Date(payload.generatedAt || Date.now()).toLocaleString("es-ES", {
+          dateStyle: "long",
+          timeStyle: "short",
+        }) +
+        "</p>";
+      html += '<div class="cover-score">' + (payload.efficiency.score ?? "—") + '<span style="font-size:28px;font-weight:600;color:#64748b">/100</span></div>';
+      html += '<div><span class="badge-level ' + lvlClass + '">Nivel: ' + lvl + "</span></div>";
+      html += '<p class="note">' + (payload.note || "") + "</p>";
+
+      html += "<h2>Contactos (totales en muestra)</h2>";
+      html += "<table class='kpi'><thead><tr><th>Concepto</th><th class='num'>Cantidad</th></tr></thead><tbody>";
+      var c = payload.contacts || {};
+      [
+        ["Registros en muestra", c.registrosEnMuestra],
+        ["Sin email", c.sinEmail],
+        ["Sin teléfono", c.sinTelefono],
+        ["Sin lifecycle", c.sinLifecycle],
+        ["Obsoletos (&gt;6 meses sin actividad)", c.obsoletos],
+      ].forEach(function (row) {
+        if (row[1] === undefined || row[1] === null) return;
+        html += "<tr><td>" + row[0] + "</td><td class='num'>" + row[1] + "</td></tr>";
+      });
+      html += "</tbody></table>";
+
+      html += "<h2>Usuarios</h2>";
+      html += "<table class='kpi'><thead><tr><th>Concepto</th><th class='num'>Cantidad</th></tr></thead><tbody>";
+      var u = payload.users || {};
+      [
+        ["Usuarios en muestra", u.registradosEnMuestra],
+        ["Inactivos", u.inactivos],
+      ].forEach(function (row) {
+        if (row[1] === undefined || row[1] === null) return;
+        html += "<tr><td>" + row[0] + "</td><td class='num'>" + row[1] + "</td></tr>";
+      });
+      html += "</tbody></table>";
+
+      if (payload.deals) {
+        html += "<h2>Deals (totales en muestra)</h2>";
+        html += "<table class='kpi'><thead><tr><th>Concepto</th><th class='num'>Cantidad</th></tr></thead><tbody>";
+        var d0 = payload.deals;
+        [
+          ["Deals en muestra", d0.muestraDeals],
+          ["Sin contacto", d0.sinContacto],
+          ["Sin owner", d0.sinOwner],
+          ["Sin importe", d0.sinImporte],
+          ["Inactivos (&gt;3 meses)", d0.inactivos],
+          ["Promedio actividades / deal", d0.promedioActividades],
+        ].forEach(function (row) {
+          if (row[1] === undefined || row[1] === null) return;
+          html += "<tr><td>" + row[0] + "</td><td class='num'>" + row[1] + "</td></tr>";
+        });
+        html += "</tbody></table>";
+      }
+
+      if (payload.companies) {
+        html += "<h2>Empresas (totales en muestra)</h2>";
+        html += "<table class='kpi'><thead><tr><th>Concepto</th><th class='num'>Cantidad</th></tr></thead><tbody>";
+        var co = payload.companies;
+        [
+          ["Empresas en muestra", co.muestraEmpresas],
+          ["Sin dominio", co.sinDominio],
+          ["Sin owner", co.sinOwner],
+          ["Sin teléfono", co.sinTelefono],
+          ["Inactivas (&gt;3 meses)", co.inactivas],
+        ].forEach(function (row) {
+          if (row[1] === undefined || row[1] === null) return;
+          html += "<tr><td>" + row[0] + "</td><td class='num'>" + row[1] + "</td></tr>";
+        });
+        html += "</tbody></table>";
+      }
+
+      html += '<div class="page-break"></div>';
+      html += "<h2>Gráficos</h2>";
+      html += '<div class="chart-row">';
+      html += '<div><p style="font-size:12px;color:#64748b;margin-bottom:6px">Hallazgos por severidad (conteos)</p><div class="chart-box"><canvas id="ch-sev"></canvas></div></div>';
+      html += '<div><p style="font-size:12px;color:#64748b;margin-bottom:6px">Contactos: desglose (conteos)</p><div class="chart-box"><canvas id="ch-contacts"></canvas></div></div>';
+      html += "</div>";
+      if (payload.deals) {
+        html += '<p style="font-size:12px;color:#64748b;margin:16px 0 6px">Deals: incidencias (conteos)</p><div class="chart-box tall"><canvas id="ch-deals"></canvas></div>';
+      }
+      html += '<p style="font-size:12px;color:#64748b;margin:16px 0 6px">Marketing: puntuación por módulo (0–100)</p><div class="chart-box tall"><canvas id="ch-mkt"></canvas></div>';
+
+      html += "<h2>Impacto estimado (modelo interno)</h2>";
+      var fin = payload.financial || {};
+      html += '<p class="fin">' + fmtEuro(fin.eurosMes) + " / mes";
+      html += "<small>" + fmtEuro(fin.eurosAno) + " / año · estimación orientativa, no garantía de ahorro</small></p>";
+
+      html += "<h2>Prioridades (títulos de hallazgos)</h2>";
+      html += "<ul class='titles'>";
+      var titles = (payload.insights && payload.insights.titulosPrioritarios) || [];
+      if (titles.length === 0) {
+        html += "<li>No hay hallazgos en este informe.</li>";
+      } else {
+        titles.forEach(function (t) {
+          html += "<li>" + esc(t) + "</li>";
+        });
+      }
+      html += "</ul>";
+
+      var hasMkt =
+        mk.emails || mk.forms || mk.leadScoring || mk.landing || mk.lists;
+      if (hasMkt) {
+        html += "<h2>Marketing (totales en muestra)</h2>";
+        html += "<table class='kpi'><thead><tr><th>Módulo</th><th class='num'>Métrica</th><th class='num'>Valor</th></tr></thead><tbody>";
+        function addRows(label, obj, pairs) {
+          if (!obj) return;
+          pairs.forEach(function (p) {
+            if (obj[p[1]] === undefined || obj[p[1]] === null) return;
+            html +=
+              "<tr><td>" +
+              label +
+              "</td><td>" +
+              p[0] +
+              "</td><td class='num'>" +
+              obj[p[1]] +
+              "</td></tr>";
+          });
+        }
+        addRows("Emails", mk.emails, [
+          ["Score", "score"],
+          ["Total analizados", "totalAnalizados"],
+          ["Sin envío 90+ días", "sinEnvio90"],
+          ["Apertura baja", "aperturaBaja"],
+        ]);
+        addRows("Formularios", mk.forms, [
+          ["Score", "score"],
+          ["Total", "total"],
+          ["Más de 8 campos", "masDe8Campos"],
+          ["Sin workflows", "sinWorkflows"],
+        ]);
+        addRows("Lead scoring", mk.leadScoring, [
+          ["Score", "score"],
+          ["Contactos", "contactos"],
+          ["Sin score", "sinScore"],
+        ]);
+        addRows("Landing", mk.landing, [
+          ["Score", "score"],
+          ["Total", "total"],
+          ["Sin actualización 180+ días", "sinActualizacion180"],
+          ["Sin formulario", "sinFormulario"],
+        ]);
+        addRows("Listas", mk.lists, [
+          ["Score", "score"],
+          ["Total", "total"],
+          ["Sin uso 90+ días", "sinUso90"],
+          ["Filtros vacíos", "filtrosVacios"],
+        ]);
+        html += "</tbody></table>";
+      }
+
+      root.innerHTML = html;
+
+      function fmtEuro(n) {
+        if (n === undefined || n === null || isNaN(n)) return "—";
+        return Math.round(Number(n)).toLocaleString("es-ES") + " €";
+      }
+      function esc(s) {
+        if (!s) return "";
+        var d = document.createElement("div");
+        d.textContent = s;
+        return d.innerHTML;
+      }
+
+      var ins = payload.insights || {};
+      var crit = ins.critical || 0;
+      var warn = ins.warning || 0;
+      var inf = ins.info || 0;
+      new Chart(document.getElementById("ch-sev"), {
+        type: "doughnut",
+        data: {
+          labels: ["Crítico", "Advertencia", "Info"],
+          datasets: [
+            {
+              data: [crit, warn, inf],
+              backgroundColor: ["#ef4444", "#f59e0b", "#3b82f6"],
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: "bottom" } },
+        },
+      });
+
+      var c0 = payload.contacts || {};
+      new Chart(document.getElementById("ch-contacts"), {
+        type: "bar",
+        data: {
+          labels: ["Sin email", "Sin teléfono", "Sin lifecycle", "Obsoletos"],
+          datasets: [
+            {
+              label: "Registros",
+              data: [
+                c0.sinEmail || 0,
+                c0.sinTelefono || 0,
+                c0.sinLifecycle || 0,
+                c0.obsoletos || 0,
+              ],
+              backgroundColor: "#0ea5e9",
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } },
+        },
+      });
+
+      if (payload.deals) {
+        var d1 = payload.deals;
+        var elDeals = document.getElementById("ch-deals");
+        if (elDeals) {
+          new Chart(elDeals, {
+            type: "bar",
+            data: {
+              labels: ["Sin contacto", "Sin owner", "Sin importe", "Inactivos"],
+              datasets: [
+                {
+                  label: "Deals",
+                  data: [
+                    d1.sinContacto || 0,
+                    d1.sinOwner || 0,
+                    d1.sinImporte || 0,
+                    d1.inactivos || 0,
+                  ],
+                  backgroundColor: "#8b5cf6",
+                },
+              ],
+            },
+            options: {
+              indexAxis: "y",
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: { x: { beginAtZero: true } },
+            },
+          });
+        }
+      }
+
+      var mLabels = [];
+      var mScores = [];
+      if (mk.emails) {
+        mLabels.push("Emails");
+        mScores.push(mk.emails.score || 0);
+      }
+      if (mk.forms) {
+        mLabels.push("Formularios");
+        mScores.push(mk.forms.score || 0);
+      }
+      if (mk.leadScoring) {
+        mLabels.push("Lead sc.");
+        mScores.push(mk.leadScoring.score || 0);
+      }
+      if (mk.landing) {
+        mLabels.push("Landing");
+        mScores.push(mk.landing.score || 0);
+      }
+      if (mk.lists) {
+        mLabels.push("Listas");
+        mScores.push(mk.lists.score || 0);
+      }
+      if (mLabels.length === 0) {
+        mLabels = ["N/D"];
+        mScores = [0];
+      }
+      new Chart(document.getElementById("ch-mkt"), {
+        type: "bar",
+        data: {
+          labels: mLabels,
+          datasets: [{ label: "Score", data: mScores, backgroundColor: "#10b981" }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { min: 0, max: 100 } },
+        },
+      });
+    })();
+  </script>
+</body>
+</html>
