@@ -2,6 +2,43 @@ import { refreshPortalToken } from "../services/hubspot/refreshToken.service.js"
 import { getListPreview } from "../services/listsPreview.service.js";
 
 /**
+ * Filtro de propiedad de fecha: valor entre dos puntos rodantes desde HOY (TIME_RANGED).
+ * Sustituye RANGE_COMPARISON (ya no válido en Lists API v3 público).
+ * @param {string} propertyName - internal name (p. ej. hs_lastactivitydate, createdate)
+ * @param {number} lowerDaysFromToday - más negativo = más al pasado (p. ej. -3650)
+ * @param {number} upperDaysFromToday - menos negativo (p. ej. -180); debe ser > lowerDaysFromToday
+ */
+function rollingDateBetweenProperty(propertyName, lowerDaysFromToday, upperDaysFromToday) {
+  return {
+    filterType: "PROPERTY",
+    property: propertyName,
+    operation: {
+      operator: "IS_BETWEEN",
+      includeObjectsWithNoValueSet: false,
+      lowerBoundEndpointBehavior: "INCLUSIVE",
+      upperBoundEndpointBehavior: "INCLUSIVE",
+      propertyParser: "VALUE",
+      lowerBoundTimePoint: {
+        timezoneSource: "CUSTOM",
+        zoneId: "UTC",
+        indexReference: { referenceType: "TODAY" },
+        offset: { days: lowerDaysFromToday },
+        timeType: "INDEXED",
+      },
+      upperBoundTimePoint: {
+        timezoneSource: "CUSTOM",
+        zoneId: "UTC",
+        indexReference: { referenceType: "TODAY" },
+        offset: { days: upperDaysFromToday },
+        timeType: "INDEXED",
+      },
+      type: "TIME_RANGED",
+      operationType: "TIME_RANGED",
+    },
+  };
+}
+
+/**
  * ========================================
  * ROUTES: Crear listas activas en HubSpot
  * ========================================
@@ -163,21 +200,12 @@ const listsRoutes = async (fastify, options) => {
                 filterBranchType: 'AND',
                 filterBranchOperator: 'AND',
                 filters: [
-                  {
-                    filterType: 'PROPERTY',
-                    property: 'hs_lastactivitydate',
-                    operation: {
-                      operationType: 'RANGE_COMPARISON',
-                      operator: 'IS_BEFORE_DATE',
-                      numberOfDays: 180,
-                      timeUnitType: 'DAY',
-                      includeObjectsWithNoValueSet: false
-                    }
-                  }
-                ]
-              }
-            ]
-          }
+                  // Última actividad entre hace ~10 años y hace 180 días (= inactivos 180+ días)
+                  rollingDateBetweenProperty('hs_lastactivitydate', -3650, -180),
+                ],
+              },
+            ],
+          },
         },
         'contacts-created-90-no-activity': {
           name: '[CWA] Contactos creados +90d sin actividad',
@@ -190,29 +218,19 @@ const listsRoutes = async (fastify, options) => {
                 filterBranchType: 'AND',
                 filterBranchOperator: 'AND',
                 filters: [
-                  {
-                    filterType: 'PROPERTY',
-                    property: 'createdate',
-                    operation: {
-                      operationType: 'RANGE_COMPARISON',
-                      operator: 'IS_BEFORE_DATE',
-                      numberOfDays: 90,
-                      timeUnitType: 'DAY',
-                      includeObjectsWithNoValueSet: false
-                    }
-                  },
+                  rollingDateBetweenProperty('createdate', -3650, -90),
                   {
                     filterType: 'PROPERTY',
                     property: 'hs_lastactivitydate',
                     operation: {
                       operationType: 'ALL_PROPERTY',
-                      operator: 'IS_UNKNOWN'
-                    }
-                  }
-                ]
-              }
-            ]
-          }
+                      operator: 'IS_UNKNOWN',
+                    },
+                  },
+                ],
+              },
+            ],
+          },
         },
         'contacts-high-risk': {
           name: '[CWA] Contactos de alto riesgo',
@@ -252,21 +270,24 @@ const listsRoutes = async (fastify, options) => {
           filterBranch: {
             filterBranchType: 'OR',
             filterBranchOperator: 'OR',
-            filterBranches: [{
-              filterBranchType: 'AND',
-              filterBranchOperator: 'AND',
-              filters: [{
-                filterType: 'ASSOCIATION',
-                associationTypeId: 3, // deal to contact
-                associationCategory: 'HUBSPOT_DEFINED',
-                operation: {
-                  operationType: 'ASSOCIATION_COUNT',
-                  operator: 'EQ',
-                  value: 0
-                }
-              }]
-            }]
-          }
+            filterBranches: [
+              {
+                filterBranchType: 'AND',
+                filterBranchOperator: 'AND',
+                filters: [
+                  {
+                    filterType: 'PROPERTY',
+                    property: 'num_associated_contacts',
+                    operation: {
+                      operationType: 'NUMBER',
+                      operator: 'IS_EQUAL_TO',
+                      value: 0,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
         },
         'deals-without-amount': {
           name: '[CWA] Deals sin monto',
@@ -314,22 +335,16 @@ const listsRoutes = async (fastify, options) => {
           filterBranch: {
             filterBranchType: 'OR',
             filterBranchOperator: 'OR',
-            filterBranches: [{
-              filterBranchType: 'AND',
-              filterBranchOperator: 'AND',
-              filters: [{
-                filterType: 'PROPERTY',
-                property: 'notes_last_updated',
-                operation: {
-                  operationType: 'RANGE_COMPARISON',
-                  operator: 'IS_BEFORE_DATE',
-                  includeObjectsWithNoValueSet: false,
-                  numberOfDays: 180,
-                  timeUnitType: 'DAY'
-                }
-              }]
-            }]
-          }
+            filterBranches: [
+              {
+                filterBranchType: 'AND',
+                filterBranchOperator: 'AND',
+                filters: [
+                  rollingDateBetweenProperty('notes_last_updated', -3650, -180),
+                ],
+              },
+            ],
+          },
         },
         'deals-stuck-stage': {
           name: '[CWA] Deals estancados por etapa',
@@ -337,22 +352,21 @@ const listsRoutes = async (fastify, options) => {
           filterBranch: {
             filterBranchType: 'OR',
             filterBranchOperator: 'OR',
-            filterBranches: [{
-              filterBranchType: 'AND',
-              filterBranchOperator: 'AND',
-              filters: [{
-                filterType: 'PROPERTY',
-                property: 'hs_date_entered_appointmentscheduled',
-                operation: {
-                  operationType: 'RANGE_COMPARISON',
-                  operator: 'IS_BEFORE_DATE',
-                  includeObjectsWithNoValueSet: false,
-                  numberOfDays: 30,
-                  timeUnitType: 'DAY'
-                }
-              }]
-            }]
-          }
+            filterBranches: [
+              {
+                filterBranchType: 'AND',
+                filterBranchOperator: 'AND',
+                filters: [
+                  // En etapa "cita programada" desde hace 30+ días (ajustable en UI HubSpot si cambia pipeline)
+                  rollingDateBetweenProperty(
+                    'hs_date_entered_appointmentscheduled',
+                    -3650,
+                    -30
+                  ),
+                ],
+              },
+            ],
+          },
         },
         'deals-high-risk': {
           name: '[CWA] Deals de alto riesgo',
