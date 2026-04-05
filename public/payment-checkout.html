@@ -592,6 +592,7 @@
       priceUsd: 5,
       durationDays: 30,
       mercadoPagoEnabled: true,
+      mercadoPagoSandbox: false,
       paypalEnabled: false
     };
 
@@ -732,11 +733,16 @@
 
         const data = await response.json();
 
-        if (!data.init_point) {
+        const mpUrl =
+          data.checkout_url ||
+          (payConfig.mercadoPagoSandbox && data.sandbox_init_point) ||
+          data.init_point;
+
+        if (!mpUrl) {
           throw new Error('No se recibió la URL de pago.');
         }
 
-        window.location.href = data.init_point;
+        window.location.href = mpUrl;
       } catch (error) {
         console.error('Error:', error);
         showError(error.message || 'Error al procesar pago');

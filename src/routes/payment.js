@@ -11,6 +11,11 @@ import {
   isPayPalConfigured,
 } from "../services/payment/paypal.service.js";
 
+/** Credenciales de prueba MP usan token que empieza por TEST-; el checkout debe usar sandbox_init_point, no init_point. */
+function isMercadoPagoSandboxToken(token) {
+  return typeof token === "string" && token.startsWith("TEST-");
+}
+
 export default async function paymentRoutes(fastify) {
   const mpToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
   const client = mpToken
@@ -30,6 +35,7 @@ export default async function paymentRoutes(fastify) {
       durationDays: getUnlockDurationDays(),
       currency: "USD",
       mercadoPagoEnabled: !!mpToken,
+      mercadoPagoSandbox: isMercadoPagoSandboxToken(mpToken),
       paypalEnabled: isPayPalConfigured(),
     });
   });
@@ -90,12 +96,22 @@ export default async function paymentRoutes(fastify) {
         }
       });
 
-      fastify.log.info({ portalId, preferenceId: preference.id }, "Payment preference created");
+      const sandbox = isMercadoPagoSandboxToken(mpToken);
+      const checkoutUrl = sandbox
+        ? preference.sandbox_init_point || preference.init_point
+        : preference.init_point || preference.sandbox_init_point;
+
+      fastify.log.info(
+        { portalId, preferenceId: preference.id, sandbox, hasCheckoutUrl: !!checkoutUrl },
+        "Payment preference created"
+      );
 
       return reply.send({
         id: preference.id,
         init_point: preference.init_point,
-        sandbox_init_point: preference.sandbox_init_point
+        sandbox_init_point: preference.sandbox_init_point,
+        /** URL correcta según credenciales (sandbox vs producción). El cliente debe redirigir aquí. */
+        checkout_url: checkoutUrl,
       });
 
     } catch (error) {
