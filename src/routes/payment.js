@@ -2,6 +2,7 @@
 import { MercadoPagoConfig, Preference, Payment } from "mercadopago";
 import {
   createUnlockTokenAfterPayment,
+  getMercadoPagoBinaryMode,
   getMercadoPagoCurrencyId,
   getMercadoPagoUnitPrice,
   getUnlockDurationDays,
@@ -46,6 +47,17 @@ function extractMercadoPagoPaymentId(body) {
     if (m) return m[1];
   }
   return null;
+}
+
+/** Último evento de webhook MP (memoria; solo diagnóstico, sin PII). */
+let lastMpWebhookSnapshot = null;
+
+function isCwaAdminSecretOk(req) {
+  const secret = process.env.CWA_ADMIN_SECRET;
+  if (!secret || String(secret).trim() === "") return false;
+  const q = req.query?.secret ?? req.query?.admin;
+  const h = req.headers["x-cwa-admin-secret"] ?? req.headers["x-admin-secret"];
+  return q === secret || h === secret;
 }
 
 export default async function paymentRoutes(fastify) {
@@ -128,7 +140,7 @@ export default async function paymentRoutes(fastify) {
             pending: `${baseUrl}/payment/pending`,
           },
           auto_return: "approved",
-          binary_mode: true,
+          binary_mode: getMercadoPagoBinaryMode(),
           notification_url: `${baseUrl}/api/payment/webhook`,
           statement_descriptor: "CWA AUDIT",
           external_reference: `CWA-${portalId}-${Date.now()}`,
@@ -147,6 +159,7 @@ export default async function paymentRoutes(fastify) {
           preferenceId: preference.id,
           currencyId,
           unitPrice,
+          binaryMode: getMercadoPagoBinaryMode(),
           checkoutHost,
           checkoutMode: process.env.MERCADOPAGO_CHECKOUT_MODE || "auto",
           hasCheckoutUrl: !!checkoutUrl,
@@ -390,15 +403,39 @@ export default async function paymentRoutes(fastify) {
           return reply.code(200).send({ received: true, skipped: "payment_get_failed" });
         }
 
+        const statusDetail = payment.status_detail ?? null;
+        const mpCause = payment.cause;
+
         fastify.log.info(
           {
             paymentId,
             status: payment.status,
+            status_detail: statusDetail,
+            cause: mpCause,
             metadata: payment.metadata,
             payer: payment.payer?.email,
           },
           "Payment info retrieved"
         );
+
+        lastMpWebhookSnapshot = {
+          paymentId: String(paymentId),
+          status: payment.status,
+          status_detail: statusDetail,
+          receivedAt: new Date().toISOString(),
+        };
+
+        if (payment.status !== "approved") {
+          fastify.log.warn(
+            {
+              paymentId,
+              status: payment.status,
+              status_detail: statusDetail,
+              cause: mpCause,
+            },
+            "MP webhook: pago no aprobado"
+          );
+        }
 
         if (payment.status === "approved") {
           const portalId = String(payment.metadata?.portal_id ?? "");
@@ -437,7 +474,8 @@ export default async function paymentRoutes(fastify) {
    * Obtiene el token generado para un pago específico
    */
   fastify.get("/api/payment/token-info", async (req, reply) => {
-    const payment_id = req.query.payment_id;
+    /** MP a veces devuelve `collection_id` en lugar de `payment_id` en la URL de retorno. */
+    const payment_id = req.query.payment_id ?? req.query.collection_id;
     const payment_ref = req.query.payment_ref;
     const ref = payment_ref || payment_id;
 
@@ -484,7 +522,7 @@ export default async function paymentRoutes(fastify) {
       let email = "";
       if (payment_ref && String(payment_ref).startsWith("paypal-")) {
         email = "";
-      } else if (paymentClient && payment_id) {
+      } else if (paymentClient && payment_id && !String(payment_ref || "").startsWith("paypal-")) {
         try {
           const payment = await paymentClient.get({ id: payment_id });
           email = payment.metadata?.email || payment.payer?.email || "";
@@ -660,10 +698,13 @@ export default async function paymentRoutes(fastify) {
             : null,
           sandboxDetected: isMercadoPagoSandboxToken(process.env.MERCADOPAGO_ACCESS_TOKEN),
           checkoutMode: process.env.MERCADOPAGO_CHECKOUT_MODE || "auto",
+          binaryMode: getMercadoPagoBinaryMode(),
           currencyId: getMercadoPagoCurrencyId(),
           unitPrice: getMercadoPagoUnitPrice(),
           hints: [
+            "Perú (checkout en PEN): MERCADOPAGO_CURRENCY_ID=PEN y MERCADOPAGO_UNIT_PRICE coherente con el monto en soles.",
             "Si el checkout MP muestra error genérico: prueba MERCADOPAGO_CURRENCY_ID=ARS y MERCADOPAGO_UNIT_PRICE acorde (cuentas LATAM a veces no aceptan USD en pruebas).",
+            "Sandbox con medios pendientes: MERCADOPAGO_BINARY_MODE=false",
             "Fuerza URL sandbox: MERCADOPAGO_CHECKOUT_MODE=sandbox",
           ],
         },
@@ -687,6 +728,20 @@ export default async function paymentRoutes(fastify) {
         stack: error.stack
       });
     }
+  });
+
+  /**
+   * GET /api/payment/debug/last-mp-webhook
+   * Último pago notificado por MP (memoria). Requiere CWA_ADMIN_SECRET (?secret= o header x-cwa-admin-secret).
+   */
+  fastify.get("/api/payment/debug/last-mp-webhook", async (req, reply) => {
+    if (!isCwaAdminSecretOk(req)) {
+      return reply.code(401).send({ error: "Unauthorized", hint: "Necesitas CWA_ADMIN_SECRET en query o header x-cwa-admin-secret" });
+    }
+    return reply.send({
+      last: lastMpWebhookSnapshot,
+      hint: "Valores útiles: status, status_detail (cc_rejected_*, etc.). Documentación: rechazos en developers.mercadopago.com",
+    });
   });
 
   /**

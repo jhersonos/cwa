@@ -38,6 +38,16 @@ export function getMercadoPagoUnitPrice() {
 }
 
 /**
+ * `binary_mode: true` en la preferencia MP excluye medios pendientes; en sandbox a veces limita combinaciones.
+ * Default true para no cambiar producción sin configurar explícitamente.
+ */
+export function getMercadoPagoBinaryMode() {
+  const raw = (process.env.MERCADOPAGO_BINARY_MODE ?? "true").trim().toLowerCase();
+  if (raw === "false" || raw === "0" || raw === "no") return false;
+  return true;
+}
+
+/**
  * Inserta token único si no existe payment_reference (idempotente).
  * @returns {{ created: boolean, token?: string, expiresAt?: Date, portalId?: string }}
  */

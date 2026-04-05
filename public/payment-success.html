@@ -223,13 +223,16 @@
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        const paymentId = urlParams.get('payment_id');
+        /** MP puede enviar payment_id o collection_id; status o collection_status */
+        const paymentId = urlParams.get('payment_id') || urlParams.get('collection_id');
         const paymentRef = urlParams.get('payment_ref');
-        const status = urlParams.get('status');
+        const status = urlParams.get('status') || urlParams.get('collection_status');
         
         async function loadTokenInfo() {
             try {
-                if (status === 'approved' && (paymentId || paymentRef)) {
+                const approved =
+                    status === 'approved' || status === 'success';
+                if (approved && (paymentId || paymentRef)) {
                     await new Promise(resolve => setTimeout(resolve, paymentRef ? 800 : 3000));
                     
                     const q = paymentRef
@@ -249,7 +252,7 @@
                     document.getElementById('loading-state').style.display = 'none';
                     document.getElementById('success-state').style.display = 'block';
                     
-                } else if (status === 'pending') {
+                } else if (status === 'pending' || status === 'in_process' || status === 'in_mediation') {
                     // Pago pendiente
                     document.getElementById('loading-state').innerHTML = `
                         <div class="spinner"></div>
