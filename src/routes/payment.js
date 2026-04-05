@@ -8,8 +8,9 @@ import {
   getUnlockPriceUsd,
 } from "../services/payment/unlockFromPayment.service.js";
 import {
-  createPayPalOrder,
   capturePayPalOrder,
+  createPayPalOrder,
+  getPayPalOrder,
   isPayPalConfigured,
 } from "../services/payment/paypal.service.js";
 
@@ -216,37 +217,100 @@ export default async function paymentRoutes(fastify) {
   });
 
   /**
+   * Lee portal/email desde purchase_unit (custom_id JSON o invoice_id cwa-portal-*).
+   */
+  function parsePayPalPurchaseUnit(pu) {
+    if (!pu) return { portalId: "", email: "" };
+    const raw = pu.custom_id;
+    if (raw) {
+      try {
+        const custom = JSON.parse(raw);
+        const p = String(custom.p ?? "").trim();
+        const e = String(custom.e ?? "").trim();
+        if (p) return { portalId: p, email: e };
+      } catch (parseErr) {
+        fastify.log.warn({ parseErr }, "PayPal custom_id JSON parse");
+      }
+    }
+    const inv = pu.invoice_id;
+    if (typeof inv === "string" && inv.startsWith("cwa-portal-")) {
+      const m = inv.match(/^cwa-portal-(\d+)$/);
+      if (m) return { portalId: m[1], email: "" };
+    }
+    return { portalId: "", email: "" };
+  }
+
+  /**
    * GET /api/payment/paypal/return
-   * PayPal redirige con ?token=ORDER_ID
+   * PayPal redirige con ?token=ORDER_ID (Orders v2)
    */
   fastify.get("/api/payment/paypal/return", async (req, reply) => {
-    const orderId = req.query.token;
     const base = basePublicUrl();
+    const q = req.query || {};
+    const orderId = q.token;
+
+    fastify.log.info(
+      { queryKeys: Object.keys(q), hasToken: !!orderId },
+      "PayPal return hit"
+    );
 
     if (!orderId) {
+      fastify.log.warn({ q }, "PayPal return: sin token (order id)");
       return reply.redirect(`${base}/payment/failure`);
     }
 
     try {
-      const captured = await capturePayPalOrder(orderId);
-      const pu = captured.purchase_units?.[0];
-      const captureId = pu?.payments?.captures?.[0]?.id;
+      /** Antes de capturar: GET order trae custom_id/invoice_id; POST /capture a menudo los omite. */
+      const orderBefore = await getPayPalOrder(orderId);
+      const pu0 = orderBefore.purchase_units?.[0];
+      let { portalId, email } = parsePayPalPurchaseUnit(pu0);
 
-      let portalId = "";
-      let email = "";
+      fastify.log.info(
+        {
+          orderId,
+          orderStatus: orderBefore.status,
+          hasPu: !!pu0,
+          custom_id_present: !!pu0?.custom_id,
+          invoice_id: pu0?.invoice_id,
+          portalIdResolved: !!portalId,
+        },
+        "PayPal order fetched before capture"
+      );
+
+      let captured;
       try {
-        const raw = pu?.custom_id;
-        if (raw) {
-          const custom = JSON.parse(raw);
-          portalId = String(custom.p || "");
-          email = String(custom.e || "");
+        captured = await capturePayPalOrder(orderId);
+      } catch (capErr) {
+        const msg = String(capErr?.message || "");
+        if (
+          msg.includes("422") ||
+          msg.includes("ORDER_ALREADY_CAPTURED") ||
+          msg.includes("already been captured")
+        ) {
+          fastify.log.warn({ orderId }, "PayPal capture skipped (orden ya capturada); releyendo orden");
+          captured = await getPayPalOrder(orderId);
+        } else {
+          throw capErr;
         }
-      } catch (parseErr) {
-        fastify.log.warn({ parseErr, orderId }, "PayPal custom_id parse");
+      }
+
+      const puCaptured = captured.purchase_units?.[0];
+      const captureId = puCaptured?.payments?.captures?.[0]?.id;
+
+      if (!portalId) {
+        const again = parsePayPalPurchaseUnit(puCaptured);
+        portalId = again.portalId;
+        email = email || again.email;
       }
 
       if (!portalId) {
-        fastify.log.error({ orderId }, "PayPal return: falta portalId");
+        fastify.log.error(
+          {
+            orderId,
+            purchaseKeys: puCaptured ? Object.keys(puCaptured) : [],
+          },
+          "PayPal return: falta portalId tras GET order + capture"
+        );
         return reply.redirect(`${base}/payment/failure`);
       }
 
@@ -262,7 +326,10 @@ export default async function paymentRoutes(fastify) {
         `${base}/payment/success?status=approved&payment_ref=${encodeURIComponent(paymentRef)}`
       );
     } catch (error) {
-      fastify.log.error({ err: error, orderId }, "PayPal return failed");
+      fastify.log.error(
+        { err: error, message: error?.message, orderId },
+        "PayPal return failed"
+      );
       return reply.redirect(`${base}/payment/failure`);
     }
   });

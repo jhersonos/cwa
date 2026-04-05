@@ -604,10 +604,17 @@
         }
       } catch (_) {}
 
-      const p = Number(payConfig.priceUsd || 5).toFixed(2);
       const d = payConfig.durationDays || 30;
+      const cur = payConfig.checkoutCurrency || 'USD';
+      const pr = Number(
+        payConfig.checkoutPrice != null ? payConfig.checkoutPrice : payConfig.priceUsd || 5
+      );
+      const priceStr =
+        cur === 'USD'
+          ? '$' + pr.toFixed(2) + ' USD'
+          : pr.toLocaleString('es-AR', { maximumFractionDigits: 2 }) + ' ' + cur;
 
-      document.getElementById('price-display').textContent = '$' + p + ' USD';
+      document.getElementById('price-display').textContent = priceStr;
       document.getElementById('price-detail').textContent =
         'Acceso válido por ' + d + ' días · Un solo pago';
 
@@ -740,6 +747,11 @@
 
         if (!mpUrl) {
           throw new Error('No se recibió la URL de pago.');
+        }
+
+        if (urlParams.get('mpdebug') === '1') {
+          console.info('[CWA MP]', { checkout_url: mpUrl, preferenceId: data.id, currency: payConfig.checkoutCurrency });
+          alert('Debug: URL de checkout en consola. Host debe ser sandbox si usas credenciales TEST.');
         }
 
         window.location.href = mpUrl;

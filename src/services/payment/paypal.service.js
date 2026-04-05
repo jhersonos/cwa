@@ -57,6 +57,8 @@ export async function createPayPalOrder({ amountUsd, portalId, email, returnUrl,
     e: String(email || ""),
   });
 
+  const invoiceId = `cwa-portal-${String(portalId).replace(/\D/g, "")}`.slice(0, 127);
+
   const body = {
     intent: "CAPTURE",
     purchase_units: [
@@ -66,7 +68,10 @@ export async function createPayPalOrder({ amountUsd, portalId, email, returnUrl,
           value,
         },
         description: "Auditoría completa CWA — 1 mes",
+        /** Reserva JSON con portal/email (la respuesta de /capture a veces NO devuelve custom_id). */
         custom_id: customId.slice(0, 127),
+        /** Respaldo estable que sí suele volver en GET order / capture. */
+        invoice_id: invoiceId,
       },
     ],
     application_context: {
@@ -99,6 +104,28 @@ export async function createPayPalOrder({ amountUsd, portalId, email, returnUrl,
   }
 
   return { orderId: order.id, approvalUrl: approve.href };
+}
+
+/**
+ * Obtiene la orden completa (incluye purchase_units.custom_id / invoice_id).
+ * Necesario porque POST /capture a menudo omite custom_id en el JSON de respuesta.
+ */
+export async function getPayPalOrder(orderId) {
+  const accessToken = await getAccessToken();
+  const res = await fetch(`${getBaseUrl()}/v2/checkout/orders/${encodeURIComponent(orderId)}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`PayPal get order: ${res.status} ${t}`);
+  }
+
+  return res.json();
 }
 
 /**
