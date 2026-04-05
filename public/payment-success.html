@@ -237,16 +237,30 @@
                     const q = paymentRef
                         ? `payment_ref=${encodeURIComponent(paymentRef)}`
                         : `payment_id=${encodeURIComponent(paymentId)}`;
-                    const response = await fetch(`/api/payment/token-info?${q}`);
-                    
-                    if (!response.ok) {
-                        throw new Error('Error al obtener token');
+                    /** PayPal/BD a veces responden 404 un instante antes de que exista la fila */
+                    const maxAttempts = paymentRef && String(paymentRef).startsWith('paypal-') ? 15 : 10;
+                    let data = null;
+                    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                        const response = await fetch(`/api/payment/token-info?${q}`);
+                        data = await response.json().catch(() => ({}));
+                        if (response.ok && data.token) {
+                            break;
+                        }
+                        if (response.status === 404 && attempt < maxAttempts) {
+                            await new Promise(r => setTimeout(r, 500));
+                            continue;
+                        }
+                        throw new Error(data.message || data.error || 'Error al obtener token');
+                    }
+                    if (!data || !data.token) {
+                        throw new Error('No se recibió el token de desbloqueo');
                     }
                     
-                    const data = await response.json();
-                    
                     document.getElementById('token').textContent = data.token;
-                    document.getElementById('user-email').textContent = data.email || '(incluido en tu cuenta HubSpot tras recargar la app)';
+                    const emailEl = document.getElementById('user-email');
+                    if (emailEl) {
+                        emailEl.textContent = data.email || '(incluido en tu cuenta HubSpot tras recargar la app)';
+                    }
                     
                     document.getElementById('loading-state').style.display = 'none';
                     document.getElementById('success-state').style.display = 'block';
