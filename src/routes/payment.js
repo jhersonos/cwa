@@ -61,6 +61,11 @@ function isCwaAdminSecretOk(req) {
   return q === secret || h === secret;
 }
 
+/** Desactiva pasarela MP en UI y API (Checkout Pro / Bricks). Requiere MERCADOPAGO_DISABLED=true */
+function isMercadoPagoDisabledByEnv() {
+  return process.env.MERCADOPAGO_DISABLED === "true";
+}
+
 export default async function paymentRoutes(fastify) {
   const mpToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
   const client = mpToken
@@ -75,6 +80,7 @@ export default async function paymentRoutes(fastify) {
    * Precio y duración para checkout público
    */
   fastify.get("/api/payment/config", async (_req, reply) => {
+    const mpOff = isMercadoPagoDisabledByEnv();
     const pubRaw = process.env.MERCADOPAGO_PUBLIC_KEY;
     const publicKey =
       pubRaw && String(pubRaw).trim() !== "" ? String(pubRaw).trim() : null;
@@ -85,11 +91,11 @@ export default async function paymentRoutes(fastify) {
       checkoutCurrency: getMercadoPagoCurrencyId(),
       durationDays: getUnlockDurationDays(),
       currency: "USD",
-      mercadoPagoEnabled: !!mpToken,
+      mercadoPagoEnabled: !!mpToken && !mpOff,
       /** Clave pública para Checkout API / Bricks (solo si está definida). */
-      mercadoPagoPublicKey: publicKey,
+      mercadoPagoPublicKey: mpOff ? null : publicKey,
       /** Pago con tarjeta embebido en /payment (sin redirigir al login de MP). Requiere ACCESS_TOKEN + PUBLIC_KEY. */
-      mercadoPagoEmbedded: !!(mpToken && publicKey),
+      mercadoPagoEmbedded: !!(mpToken && publicKey && !mpOff),
       mercadoPagoSandbox: isMercadoPagoSandboxToken(mpToken),
       mercadoPagoCheckoutMode: process.env.MERCADOPAGO_CHECKOUT_MODE || "auto",
       paypalEnabled: isPayPalConfigured(),
@@ -107,6 +113,13 @@ export default async function paymentRoutes(fastify) {
       return reply.code(400).send({
         error: "Missing required fields",
         message: "Se requiere portalId y email",
+      });
+    }
+
+    if (isMercadoPagoDisabledByEnv()) {
+      return reply.code(503).send({
+        error: "Mercado Pago desactivado",
+        message: "Mercado Pago no está disponible en este momento.",
       });
     }
 
@@ -213,6 +226,13 @@ export default async function paymentRoutes(fastify) {
       return reply.code(400).send({
         error: "Missing payment fields",
         message: "Faltan datos del formulario de tarjeta (token o método de pago).",
+      });
+    }
+
+    if (isMercadoPagoDisabledByEnv()) {
+      return reply.code(503).send({
+        error: "Mercado Pago desactivado",
+        message: "Mercado Pago no está disponible en este momento.",
       });
     }
 
@@ -844,6 +864,7 @@ export default async function paymentRoutes(fastify) {
         },
         mercadoPago: {
           configured: mercadoPagoConfigured,
+          disabledByEnv: isMercadoPagoDisabledByEnv(),
           publicKey: process.env.MERCADOPAGO_PUBLIC_KEY
             ? "configured"
             : "missing",

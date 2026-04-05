@@ -402,6 +402,34 @@
       border-color: rgba(255, 77, 0, 0.45);
     }
 
+    .manual-pay-cta {
+      margin-top: 20px;
+      padding: 18px 16px;
+      background: rgba(0, 145, 174, 0.1);
+      border: 1px solid rgba(0, 145, 174, 0.35);
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--muted-2);
+    }
+
+    .manual-pay-cta strong {
+      display: block;
+      color: #7dd3fc;
+      margin-bottom: 8px;
+      font-size: 15px;
+    }
+
+    .manual-pay-cta a {
+      color: #38bdf8;
+      font-weight: 700;
+      text-decoration: underline;
+    }
+
+    .manual-pay-cta a:hover {
+      color: #7dd3fc;
+    }
+
     .loading {
       display: none;
       text-align: center;
@@ -593,13 +621,22 @@
                   Pagar con PayPal
                 </button>
                 <p class="pay-hint" id="paypal-hint"></p>
+
+                <div class="manual-pay-cta" id="manual-pay-cta">
+                  <strong>¿PayPal no está disponible en tu país?</strong>
+                  Escríbenos a
+                  <a href="mailto:contacto@estado7.com?subject=Enlace%20de%20pago%20CWA%20-%20HubSpot">contacto@estado7.com</a>
+                  indicando tu <strong>Portal ID</strong> de HubSpot y te enviaremos un enlace de pago alternativo
+                  (habilitación manual por nuestro equipo).
+                </div>
               </div>
       
               <div class="paypal-unavailable" id="paypal-unavailable" aria-live="polite">
                 <strong>PayPal no está activo en este servidor.</strong>
-                El botón de PayPal aparecerá aquí cuando el administrador configure las variables
-                <code>PAYPAL_CLIENT_ID</code> y <code>PAYPAL_CLIENT_SECRET</code> en el entorno del backend
-                (y <code>PAYPAL_MODE=live</code> en producción). Mientras tanto puedes pagar con Mercado Pago.
+                Configura <code>PAYPAL_CLIENT_ID</code> y <code>PAYPAL_CLIENT_SECRET</code>
+                (y <code>PAYPAL_MODE=live</code> en producción). Si no puedes usar PayPal en tu país, escribe a
+                <a href="mailto:contacto@estado7.com" style="color:#38bdf8;">contacto@estado7.com</a>
+                para solicitar un enlace de pago manual.
               </div>
             </form>
       
@@ -611,7 +648,7 @@
       </div>
 
       <div class="secure-badge">
-        Pagos seguros con Mercado Pago (embebido o checkout clásico) y PayPal · Acceso asociado a tu portal
+        Pago con PayPal de forma segura · Acceso asociado a tu portal
       </div>
 
       <div class="footer-note">
@@ -620,7 +657,6 @@
     </div>
   </div>
 
-  <script src="https://sdk.mercadopago.com/js/v2"></script>
   <script>
     const form = document.getElementById('checkout-form');
     const submitBtn = document.getElementById('submit-btn');
@@ -642,7 +678,7 @@
     let payConfig = {
       priceUsd: 5,
       durationDays: 30,
-      mercadoPagoEnabled: true,
+      mercadoPagoEnabled: false,
       mercadoPagoEmbedded: false,
       mercadoPagoPublicKey: null,
       mercadoPagoSandbox: false,
@@ -676,12 +712,14 @@
       const paypalUnavailable = document.getElementById('paypal-unavailable');
       const methodsTitle = document.getElementById('payment-methods-title');
       const mpEmbeddedWrap = document.getElementById('mp-embedded-wrap');
+      const mpFallbackBtn = document.getElementById('mp-fallback-checkout');
 
       if (!payConfig.mercadoPagoEnabled) {
+        submitBtn.style.display = 'none';
         submitBtn.disabled = true;
-        document.getElementById('mp-hint').textContent =
-          'Mercado Pago no está disponible en este servidor.';
+        if (mpFallbackBtn) mpFallbackBtn.style.display = 'none';
         mpEmbeddedWrap.style.display = 'none';
+        document.getElementById('mp-hint').textContent = '';
       }
 
       if (payConfig.paypalEnabled) {
@@ -689,10 +727,9 @@
         paypalBtn.disabled = false;
         document.getElementById('paypal-hint').textContent = '';
         paypalUnavailable.classList.remove('show');
-        methodsTitle.textContent =
-          payConfig.mercadoPagoEnabled
-            ? 'Elige método de pago'
-            : 'Pago con PayPal';
+        methodsTitle.textContent = payConfig.mercadoPagoEnabled
+          ? 'Elige método de pago'
+          : 'Pago con PayPal';
       } else {
         paypalBtn.style.display = 'none';
         paypalUnavailable.classList.add('show');
@@ -700,24 +737,55 @@
 
         if (!payConfig.mercadoPagoEnabled) {
           paypalUnavailable.innerHTML =
-            '<strong>Ningún método de pago está configurado.</strong> Contacta soporte.';
+            '<strong>PayPal no está configurado en el servidor.</strong> Escribe a ' +
+            '<a href="mailto:contacto@estado7.com" style="color:#38bdf8;font-weight:700;">contacto@estado7.com</a> ' +
+            'con tu Portal ID de HubSpot para solicitar un enlace de pago manual.';
+        } else {
+          paypalUnavailable.innerHTML =
+            '<strong>PayPal no está activo en este servidor.</strong> Configura las credenciales PayPal en el backend o usa Mercado Pago.';
         }
       }
 
       if (payConfig.mercadoPagoEnabled && payConfig.mercadoPagoEmbedded && payConfig.mercadoPagoPublicKey) {
         mpEmbeddedWrap.style.display = 'block';
         submitBtn.style.display = 'none';
+        submitBtn.disabled = true;
+        if (mpFallbackBtn) mpFallbackBtn.style.display = 'block';
         document.getElementById('mp-hint').textContent =
           'Completa Portal ID y email arriba, luego los datos de tarjeta abajo. PayPal sigue disponible si está activo.';
         await initMercadoPagoBrick();
       } else {
         mpEmbeddedWrap.style.display = 'none';
-        submitBtn.style.display = 'block';
+        if (payConfig.mercadoPagoEnabled) {
+          submitBtn.style.display = 'block';
+          submitBtn.disabled = false;
+          if (mpFallbackBtn) mpFallbackBtn.style.display = 'block';
+        }
       }
     })();
 
+    function loadMercadoPagoSdk() {
+      if (typeof MercadoPago !== 'undefined') {
+        return Promise.resolve();
+      }
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://sdk.mercadopago.com/js/v2';
+        s.async = true;
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error('No se pudo cargar MercadoPago.js'));
+        document.head.appendChild(s);
+      });
+    }
+
     async function initMercadoPagoBrick() {
       if (mpBrickMounted) return;
+      try {
+        await loadMercadoPagoSdk();
+      } catch (e) {
+        showError('No se cargó el SDK de Mercado Pago. Recarga la página o usa PayPal.');
+        return;
+      }
       if (typeof MercadoPago === 'undefined') {
         showError('No se cargó el SDK de Mercado Pago. Recarga la página o usa el checkout clásico.');
         return;
@@ -910,11 +978,19 @@
     }
 
     document.getElementById('mp-fallback-checkout').addEventListener('click', () => {
+      if (!payConfig.mercadoPagoEnabled) return;
       redirectToCheckoutPro();
     });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+
+      if (!payConfig.mercadoPagoEnabled) {
+        showError(
+          'Usa el botón «Pagar con PayPal» o escribe a contacto@estado7.com si PayPal no está disponible en tu país.'
+        );
+        return;
+      }
 
       if (payConfig.mercadoPagoEmbedded) {
         showError('Usa el formulario de tarjeta más abajo o el enlace de checkout Mercado Pago (otros medios).');
