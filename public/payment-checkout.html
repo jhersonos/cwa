@@ -1,490 +1,730 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Desbloquear Auditoría Completa - Cost CRM Risk Scanner</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        
-        .container {
-            background: white;
-            max-width: 600px;
-            width: 100%;
-            padding: 40px;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-        
-        h1 {
-            color: #0091AE;
-            margin-bottom: 10px;
-            font-size: 32px;
-        }
-        
-        .subtitle {
-            color: #666;
-            margin-bottom: 30px;
-            font-size: 16px;
-        }
-        
-        .price {
-            font-size: 48px;
-            font-weight: bold;
-            color: #0091AE;
-            margin: 20px 0;
-        }
-        
-        .price-detail {
-            color: #666;
-            margin-bottom: 30px;
-        }
-        
-        .features {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-        }
-        
-        .features h3 {
-            color: #333;
-            margin-bottom: 15px;
-        }
-        
-        .features ul {
-            list-style: none;
-            padding: 0;
-        }
-        
-        .features li {
-            padding: 8px 0;
-            color: #555;
-            display: flex;
-            align-items: center;
-        }
-        
-        .features li:before {
-            content: "✓";
-            color: #10b981;
-            font-weight: bold;
-            margin-right: 10px;
-            font-size: 20px;
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #333;
-            font-weight: 600;
-        }
-        
-        input {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 16px;
-            transition: border 0.3s;
-        }
-        
-        input:focus {
-            outline: none;
-            border-color: #0091AE;
-        }
-        
-        .cta-button {
-            background: #0091AE;
-            color: white;
-            border: none;
-            padding: 16px 32px;
-            font-size: 18px;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            width: 100%;
-            transition: background 0.3s;
-            margin-top: 20px;
-        }
-        
-        .cta-button:hover:not(:disabled) {
-            background: #007a8c;
-        }
-        
-        .cta-button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Activar Auditoría Completa - Cost CRM Risk Scanner</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-        .btn-paypal {
-            background: #0070ba;
-            color: white;
-            border: none;
-            padding: 16px 32px;
-            font-size: 18px;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            width: 100%;
-            transition: background 0.3s;
-        }
-        .btn-paypal:hover:not(:disabled) {
-            background: #005ea2;
-        }
-        .btn-paypal:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        .pay-hint {
-            font-size: 13px;
-            color: #64748b;
-            margin-top: 8px;
-            text-align: center;
-        }
+    :root {
+      --bg: #10111d;
+      --panel: #181a2a;
+      --panel-2: #1f2238;
+      --text: #ffffff;
+      --muted: #94a3b8;
+      --muted-2: #cbd5e1;
+      --primary: #ff4d00;
+      --primary-hover: #e64500;
+      --border: rgba(255, 255, 255, 0.08);
+      --success: #22c55e;
+      --danger-bg: #3a1717;
+      --danger-border: #ef4444;
+      --danger-text: #fecaca;
+      --warning-bg: #3a2b12;
+      --warning-border: #f59e0b;
+      --warning-text: #fde68a;
+      --input-bg: #121421;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+    }
 
-        .payment-methods {
-            margin-top: 8px;
-        }
-        .payment-methods h3 {
-            font-size: 15px;
-            color: #334155;
-            margin-bottom: 12px;
-            font-weight: 600;
-        }
-        .paypal-unavailable {
-            display: none;
-            background: #fffbeb;
-            border: 1px solid #fcd34d;
-            color: #92400e;
-            padding: 14px 16px;
-            border-radius: 8px;
-            font-size: 14px;
-            line-height: 1.5;
-            margin-top: 12px;
-        }
-        .paypal-unavailable.show {
-            display: block;
-        }
-        .paypal-unavailable code {
-            font-size: 12px;
-            background: #fef3c7;
-            padding: 2px 6px;
-            border-radius: 4px;
-        }
-        
-        .error {
-            background: #fee2e2;
-            border: 1px solid #ef4444;
-            color: #b91c1c;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            display: none;
-        }
-        
-        .error.show {
-            display: block;
-        }
-        
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 20px;
-        }
-        
-        .loading.show {
-            display: block;
-        }
-        
-        .spinner {
-            border: 4px solid #f3f4f6;
-            border-top: 4px solid #0091AE;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .secure-badge {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            color: #666;
-            font-size: 14px;
-            margin-top: 20px;
-        }
-        
-        .secure-badge:before {
-            content: "🔒";
-        }
-    </style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+        Cantarell, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(255, 77, 0, 0.18), transparent 32%),
+        radial-gradient(circle at bottom right, rgba(255, 77, 0, 0.08), transparent 28%),
+        var(--bg);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      color: var(--text);
+    }
+
+    .container {
+      width: 100%;
+      max-width: 680px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .top-bar {
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary), #ff7a45);
+    }
+
+    .content {
+      padding: 36px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: #ffb08a;
+      background: rgba(255, 77, 0, 0.08);
+      border: 1px solid rgba(255, 77, 0, 0.2);
+      padding: 8px 12px;
+      border-radius: 999px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      font-size: 38px;
+      line-height: 1.05;
+      color: var(--text);
+      margin-bottom: 14px;
+      letter-spacing: -0.02em;
+    }
+
+    .headline-accent {
+      color: var(--primary);
+    }
+
+    .subtitle {
+      color: var(--muted-2);
+      font-size: 16px;
+      line-height: 1.7;
+      margin-bottom: 28px;
+    }
+
+    .impact-box {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .impact-box h2 {
+      font-size: 16px;
+      color: var(--primary);
+      margin-bottom: 12px;
+    }
+
+    .impact-box ul {
+      padding-left: 20px;
+      color: var(--muted-2);
+      line-height: 1.7;
+    }
+
+    .pricing-card {
+      background: linear-gradient(180deg, rgba(255, 77, 0, 0.08), rgba(255, 77, 0, 0.02));
+      border: 1px solid rgba(255, 77, 0, 0.18);
+      border-radius: 18px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .price-label {
+      color: #ffb08a;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 10px;
+    }
+
+    .price {
+      font-size: 52px;
+      font-weight: 800;
+      color: var(--primary);
+      line-height: 1;
+      margin-bottom: 10px;
+      letter-spacing: -0.04em;
+    }
+
+    .price-detail {
+      color: var(--muted-2);
+      margin-bottom: 8px;
+      font-size: 15px;
+    }
+
+    .price-note {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .features {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 26px;
+    }
+
+    .features h3 {
+      color: var(--text);
+      font-size: 18px;
+      margin-bottom: 16px;
+    }
+
+    .features ul {
+      list-style: none;
+    }
+
+    .features li {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 0;
+      color: var(--muted-2);
+      line-height: 1.55;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .features li:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .features li::before {
+      content: "✓";
+      color: var(--success);
+      font-weight: 800;
+      font-size: 18px;
+      line-height: 1.2;
+      margin-top: 1px;
+      flex-shrink: 0;
+    }
+
+    .warning-box {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px dashed rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 22px;
+    }
+
+    .warning-box strong {
+      display: block;
+      color: #ffd7c2;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .warning-box ul {
+      padding-left: 20px;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .error {
+      background: var(--danger-bg);
+      border: 1px solid var(--danger-border);
+      color: var(--danger-text);
+      padding: 14px 16px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      display: none;
+      line-height: 1.5;
+    }
+
+    .error.show {
+      display: block;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--text);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      background: var(--input-bg);
+      color: var(--text);
+      border-radius: 12px;
+      font-size: 16px;
+      transition: border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    input::placeholder {
+      color: #64748b;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: rgba(255, 77, 0, 0.65);
+      box-shadow: 0 0 0 4px rgba(255, 77, 0, 0.12);
+    }
+
+    .field-help {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+
+    .payment-methods {
+      margin-top: 10px;
+    }
+
+    .payment-methods h3 {
+      font-size: 15px;
+      color: var(--text);
+      margin-bottom: 12px;
+      font-weight: 700;
+    }
+
+    .cta-button,
+    .btn-paypal {
+      border: none;
+      padding: 16px 20px;
+      font-size: 17px;
+      font-weight: 800;
+      border-radius: 12px;
+      cursor: pointer;
+      width: 100%;
+      transition: transform 0.15s ease, opacity 0.2s ease, background 0.2s ease;
+    }
+
+    .cta-button {
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 12px 30px rgba(255, 77, 0, 0.22);
+    }
+
+    .cta-button:hover:not(:disabled) {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-paypal {
+      background: #0070ba;
+      color: white;
+      margin-top: 12px;
+    }
+
+    .btn-paypal:hover:not(:disabled) {
+      background: #005ea2;
+      transform: translateY(-1px);
+    }
+
+    .cta-button:disabled,
+    .btn-paypal:disabled {
+      background: #475569;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .pay-hint {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 8px;
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    .paypal-unavailable {
+      display: none;
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      color: var(--warning-text);
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-top: 12px;
+    }
+
+    .paypal-unavailable.show {
+      display: block;
+    }
+
+    .paypal-unavailable code {
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 28px 20px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      margin-top: 16px;
+    }
+
+    .loading.show {
+      display: block;
+    }
+
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.08);
+      border-top: 4px solid var(--primary);
+      border-radius: 50%;
+      width: 42px;
+      height: 42px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 12px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .secure-badge {
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .footer-note {
+      margin-top: 12px;
+      text-align: center;
+      color: #6b7280;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 640px) {
+      .content {
+        padding: 24px;
+      }
+
+      h1 {
+        font-size: 30px;
+      }
+
+      .price {
+        font-size: 42px;
+      }
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🔓 Desbloquear Auditoría Completa</h1>
-        <p class="subtitle">
-            Obtén acceso a exportaciones completas de registros afectados y resumen detallado de auditoría.
-        </p>
-        
+  <div class="container">
+    <div class="top-bar"></div>
+
+    <div class="content">
+      <div class="eyebrow">Auditoría completa · Acceso inmediato</div>
+
+      <h1>
+        Activa la <span class="headline-accent">auditoría completa</span>
+      </h1>
+
+      <p class="subtitle">
+        Este diagnóstico detectó problemas que pueden afectar directamente tu pipeline,
+        la calidad de tus datos y el seguimiento comercial. Desbloquea la auditoría
+        completa para pasar del insight a la acción.
+      </p>
+
+      <div class="impact-box">
+        <h2>🚨 Qué te permite resolver</h2>
+        <ul>
+          <li>Identificar exactamente qué registros están afectando tu operación.</li>
+          <li>Corregir deals, contactos y empresas con listas listas para trabajar en HubSpot.</li>
+          <li>Compartir un resumen ejecutivo con tu equipo o agencia para ejecutar mejoras.</li>
+        </ul>
+      </div>
+
+      <div class="pricing-card">
+        <div class="price-label">Acceso completo por 30 días</div>
         <div class="price" id="price-display">— USD</div>
         <p class="price-detail" id="price-detail">Cargando…</p>
-        
-        <div class="features">
-            <h3>Incluye:</h3>
-            <ul>
-                <li>Exportación CSV de deals sin owner, contacto o precio</li>
-                <li>Exportación de contactos sin email o datos incompletos</li>
-                <li>Exportación de empresas sin teléfono o información crítica</li>
-                <li>Resumen completo de auditoría con scores y recomendaciones</li>
-                <li>Ideal para trabajo interno o con agencias/consultores</li>
-                <li>Acceso válido por 1 mes (30 días) desde la activación</li>
-            </ul>
-        </div>
-        
-        <div id="error" class="error"></div>
-        
-        <form id="checkout-form">
-            <div class="form-group">
-                <label for="portal-id">Portal ID de HubSpot *</label>
-                <input 
-                    type="text" 
-                    id="portal-id" 
-                    name="portalId" 
-                    required 
-                    placeholder="Ej: 12345678"
-                    pattern="[0-9]+"
-                    title="Solo números"
-                >
-                <small style="color: #666; font-size: 13px;">
-                    Encuentra tu Portal ID en la configuración de HubSpot
-                </small>
-            </div>
-            
-            <div class="form-group">
-                <label for="email">Email *</label>
-                <input 
-                    type="email" 
-                    id="email" 
-                    name="email" 
-                    required 
-                    placeholder="tu@email.com"
-                >
-                <small style="color: #666; font-size: 13px;">
-                    Te enviaremos el token de desbloqueo a este email
-                </small>
-            </div>
-            
-            <div class="payment-methods" id="payment-methods">
-                <h3 id="payment-methods-title">Método de pago</h3>
-                <button type="submit" class="cta-button" id="submit-btn">
-                    Pagar con Mercado Pago →
-                </button>
-                <p class="pay-hint" id="mp-hint"></p>
+        <p class="price-note">
+          Un solo pago. Menos de lo que cuesta perder un solo deal mal gestionado.
+        </p>
+      </div>
 
-                <button type="button" class="btn-paypal" id="paypal-btn" style="display: none; margin-top: 12px;">
-                    Pagar con PayPal
-                </button>
-                <p class="pay-hint" id="paypal-hint"></p>
-            </div>
+      <div class="features">
+        <h3>Con la auditoría completa podrás:</h3>
+        <ul>
+          <li>Crear listas dinámicas en HubSpot para cada problema detectado.</li>
+          <li>Previsualizar registros afectados antes de crear cada lista.</li>
+          <li>Exportar información útil para limpieza, seguimiento o trabajo con agencias.</li>
+          <li>Generar un resumen ejecutivo en PDF para compartir con dirección o RevOps.</li>
+          <li>Convertir el diagnóstico en un plan de acción real dentro de tu portal.</li>
+          <li>Monitorear mejoras y hacer seguimiento continuo de la eficiencia del CRM.</li>
+        </ul>
+      </div>
 
-            <div class="paypal-unavailable" id="paypal-unavailable" aria-live="polite">
-                <strong>PayPal no está activo en este servidor.</strong>
-                El botón de PayPal aparecerá aquí cuando el administrador configure las variables
-                <code>PAYPAL_CLIENT_ID</code> y <code>PAYPAL_CLIENT_SECRET</code> en el entorno del backend
-                (y <code>PAYPAL_MODE=live</code> en producción). Mientras tanto puedes pagar con Mercado Pago.
-            </div>
-        </form>
-        
-        <div id="loading" class="loading">
-            <div class="spinner"></div>
-            <p>Creando checkout seguro...</p>
+      <div class="warning-box">
+        <strong>Si no corriges estos problemas:</strong>
+        <ul>
+          <li>El pipeline puede seguir siendo poco confiable.</li>
+          <li>Se pueden perder oportunidades por falta de seguimiento u ownership.</li>
+          <li>El equipo seguirá operando con datos incompletos o desordenados.</li>
+        </ul>
+      </div>
+
+      <div id="error" class="error"></div>
+
+      <form id="checkout-form">
+        <div class="form-group">
+          <label for="portal-id">Portal ID de HubSpot *</label>
+          <input
+            type="text"
+            id="portal-id"
+            name="portalId"
+            required
+            placeholder="Ej: 12345678"
+            pattern="[0-9]+"
+            title="Solo números"
+          />
+          <small class="field-help">
+            Encuentra tu Portal ID en la configuración de HubSpot.
+          </small>
         </div>
-        
-        <div class="secure-badge">
-            Pagos seguros: Mercado Pago y/o PayPal
+
+        <div class="form-group">
+          <label for="email">Email *</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            required
+            placeholder="tu@email.com"
+          />
+          <small class="field-help">
+            Usaremos este email para asociar el desbloqueo a tu portal y confirmar el acceso.
+          </small>
         </div>
+
+        <div class="payment-methods" id="payment-methods">
+          <h3 id="payment-methods-title">Método de pago</h3>
+
+          <button type="submit" class="cta-button" id="submit-btn">
+            Activar auditoría y pagar con Mercado Pago →
+          </button>
+          <p class="pay-hint" id="mp-hint"></p>
+
+          <button type="button" class="btn-paypal" id="paypal-btn" style="display: none;">
+            Pagar con PayPal
+          </button>
+          <p class="pay-hint" id="paypal-hint"></p>
+        </div>
+
+        <div class="paypal-unavailable" id="paypal-unavailable" aria-live="polite">
+          <strong>PayPal no está activo en este servidor.</strong>
+          El botón de PayPal aparecerá aquí cuando el administrador configure las variables
+          <code>PAYPAL_CLIENT_ID</code> y <code>PAYPAL_CLIENT_SECRET</code> en el entorno del backend
+          (y <code>PAYPAL_MODE=live</code> en producción). Mientras tanto puedes pagar con Mercado Pago.
+        </div>
+      </form>
+
+      <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p>Preparando checkout seguro…</p>
+      </div>
+
+      <div class="secure-badge">
+        Pagos seguros con Mercado Pago y PayPal · Acceso asociado automáticamente a tu portal
+      </div>
+
+      <div class="footer-note">
+        Si tienes dudas o necesitas implementación, puedes continuar luego con auditoría o soporte especializado.
+      </div>
     </div>
+  </div>
 
-    <script>
-        const form = document.getElementById('checkout-form');
-        const submitBtn = document.getElementById('submit-btn');
-        const paypalBtn = document.getElementById('paypal-btn');
-        const loading = document.getElementById('loading');
-        const errorDiv = document.getElementById('error');
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        const portalIdFromUrl = urlParams.get('portalId');
-        const emailFromUrl = urlParams.get('email');
-        if (portalIdFromUrl) {
-            document.getElementById('portal-id').value = portalIdFromUrl;
+  <script>
+    const form = document.getElementById('checkout-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const paypalBtn = document.getElementById('paypal-btn');
+    const loading = document.getElementById('loading');
+    const errorDiv = document.getElementById('error');
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const portalIdFromUrl = urlParams.get('portalId');
+    const emailFromUrl = urlParams.get('email');
+
+    if (portalIdFromUrl) {
+      document.getElementById('portal-id').value = portalIdFromUrl;
+    }
+    if (emailFromUrl) {
+      document.getElementById('email').value = decodeURIComponent(emailFromUrl);
+    }
+
+    let payConfig = {
+      priceUsd: 5,
+      durationDays: 30,
+      mercadoPagoEnabled: true,
+      paypalEnabled: false
+    };
+
+    (async function loadConfig() {
+      try {
+        const r = await fetch('/api/payment/config');
+        if (r.ok) {
+          payConfig = await r.json();
         }
-        if (emailFromUrl) {
-            document.getElementById('email').value = decodeURIComponent(emailFromUrl);
+      } catch (_) {}
+
+      const p = Number(payConfig.priceUsd || 5).toFixed(2);
+      const d = payConfig.durationDays || 30;
+
+      document.getElementById('price-display').textContent = '$' + p + ' USD';
+      document.getElementById('price-detail').textContent =
+        'Acceso válido por ' + d + ' días · Un solo pago';
+
+      const paypalUnavailable = document.getElementById('paypal-unavailable');
+      const methodsTitle = document.getElementById('payment-methods-title');
+
+      if (!payConfig.mercadoPagoEnabled) {
+        submitBtn.disabled = true;
+        document.getElementById('mp-hint').textContent =
+          'Mercado Pago no está disponible en este servidor.';
+      }
+
+      if (payConfig.paypalEnabled) {
+        paypalBtn.style.display = 'block';
+        paypalBtn.disabled = false;
+        document.getElementById('paypal-hint').textContent = '';
+        paypalUnavailable.classList.remove('show');
+        methodsTitle.textContent =
+          payConfig.mercadoPagoEnabled
+            ? 'Elige método de pago'
+            : 'Pago con PayPal';
+      } else {
+        paypalBtn.style.display = 'none';
+        paypalUnavailable.classList.add('show');
+        document.getElementById('paypal-hint').textContent = '';
+
+        if (!payConfig.mercadoPagoEnabled) {
+          paypalUnavailable.innerHTML =
+            '<strong>Ningún método de pago está configurado.</strong> Contacta soporte.';
         }
+      }
+    })();
 
-        let payConfig = { priceUsd: 5, durationDays: 30, mercadoPagoEnabled: true, paypalEnabled: false };
+    function getFormValues() {
+      return {
+        portalId: document.getElementById('portal-id').value.trim(),
+        email: document.getElementById('email').value.trim(),
+      };
+    }
 
-        (async function loadConfig() {
-            try {
-                const r = await fetch('/api/payment/config');
-                if (r.ok) {
-                    payConfig = await r.json();
-                }
-            } catch (_) {}
-            const p = Number(payConfig.priceUsd || 5).toFixed(2);
-            const d = payConfig.durationDays || 30;
-            document.getElementById('price-display').textContent = '$' + p + ' USD';
-            document.getElementById('price-detail').textContent =
-                'Válido por 1 mes (' + d + ' días) · Un solo pago';
-            const paypalUnavailable = document.getElementById('paypal-unavailable');
-            const methodsTitle = document.getElementById('payment-methods-title');
+    function showError(message) {
+      errorDiv.textContent = message;
+      errorDiv.classList.add('show');
+      errorDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 
-            if (!payConfig.mercadoPagoEnabled) {
-                submitBtn.disabled = true;
-                document.getElementById('mp-hint').textContent =
-                    'Mercado Pago no disponible en este servidor.';
-            }
-            if (payConfig.paypalEnabled) {
-                paypalBtn.style.display = 'block';
-                paypalBtn.disabled = false;
-                document.getElementById('paypal-hint').textContent = '';
-                paypalUnavailable.classList.remove('show');
-                methodsTitle.textContent =
-                    payConfig.mercadoPagoEnabled
-                        ? 'Elige método de pago'
-                        : 'Pago con PayPal';
-            } else {
-                paypalBtn.style.display = 'none';
-                paypalUnavailable.classList.add('show');
-                document.getElementById('paypal-hint').textContent = '';
-                if (!payConfig.mercadoPagoEnabled) {
-                    paypalUnavailable.innerHTML =
-                        '<strong>Ningún método de pago está configurado.</strong> Contacta soporte.';
-                }
-            }
-        })();
+    paypalBtn.addEventListener('click', async () => {
+      const { portalId, email } = getFormValues();
 
-        function getFormValues() {
-            return {
-                portalId: document.getElementById('portal-id').value.trim(),
-                email: document.getElementById('email').value.trim(),
-            };
-        }
+      if (!portalId || !email) {
+        showError('Completa Portal ID y email.');
+        return;
+      }
 
-        paypalBtn.addEventListener('click', async () => {
-            const { portalId, email } = getFormValues();
-            if (!portalId || !email) {
-                showError('Completa Portal ID y email.');
-                return;
-            }
-            if (!payConfig.paypalEnabled) {
-                showError('PayPal no está habilitado.');
-                return;
-            }
-            form.style.display = 'none';
-            loading.classList.add('show');
-            loading.querySelector('p').textContent = 'Conectando con PayPal...';
-            errorDiv.classList.remove('show');
-            try {
-                const response = await fetch('/api/payment/paypal/create-order', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ portalId, email }),
-                });
-                const data = await response.json().catch(() => ({}));
-                if (!response.ok) {
-                    throw new Error(data.message || data.error || 'Error PayPal');
-                }
-                if (!data.approvalUrl) {
-                    throw new Error('Respuesta inválida del servidor (sin URL de PayPal)');
-                }
-                window.location.href = data.approvalUrl;
-            } catch (error) {
-                console.error(error);
-                showError(error.message || 'Error al iniciar PayPal');
-                form.style.display = 'block';
-                loading.classList.remove('show');
-            }
+      if (!payConfig.paypalEnabled) {
+        showError('PayPal no está habilitado.');
+        return;
+      }
+
+      form.style.display = 'none';
+      loading.classList.add('show');
+      loading.querySelector('p').textContent = 'Conectando con PayPal…';
+      errorDiv.classList.remove('show');
+
+      try {
+        const response = await fetch('/api/payment/paypal/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ portalId, email }),
         });
-        
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const portalId = document.getElementById('portal-id').value;
-            const email = document.getElementById('email').value;
-            
-            // Validar
-            if (!portalId || !email) {
-                showError('Por favor completa todos los campos');
-                return;
-            }
-            
-            // Mostrar loading
-            form.style.display = 'none';
-            loading.classList.add('show');
-            errorDiv.classList.remove('show');
-            
-            try {
-                // Crear preferencia de pago en backend
-                const response = await fetch('/api/payment/create-preference', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        portalId,
-                        email
-                    })
-                });
-                
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.message || 'Error al crear checkout');
-                }
-                
-                const data = await response.json();
-                
-                // Redirigir a MercadoPago
-                window.location.href = data.init_point;
-                
-            } catch (error) {
-                console.error('Error:', error);
-                showError(error.message || 'Error al procesar pago');
-                form.style.display = 'block';
-                loading.classList.remove('show');
-            }
-        });
-        
-        function showError(message) {
-            errorDiv.textContent = message;
-            errorDiv.classList.add('show');
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(data.message || data.error || 'Error PayPal');
         }
-    </script>
+
+        if (!data.approvalUrl) {
+          throw new Error('Respuesta inválida del servidor (sin URL de PayPal)');
+        }
+
+        window.location.href = data.approvalUrl;
+      } catch (error) {
+        console.error(error);
+        showError(error.message || 'Error al iniciar PayPal');
+        form.style.display = 'block';
+        loading.classList.remove('show');
+      }
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const portalId = document.getElementById('portal-id').value.trim();
+      const email = document.getElementById('email').value.trim();
+
+      if (!portalId || !email) {
+        showError('Por favor completa todos los campos.');
+        return;
+      }
+
+      form.style.display = 'none';
+      loading.classList.add('show');
+      loading.querySelector('p').textContent = 'Creando checkout seguro…';
+      errorDiv.classList.remove('show');
+
+      try {
+        const response = await fetch('/api/payment/create-preference', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            portalId,
+            email
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.message || 'Error al crear checkout');
+        }
+
+        const data = await response.json();
+
+        if (!data.init_point) {
+          throw new Error('No se recibió la URL de pago.');
+        }
+
+        window.location.href = data.init_point;
+      } catch (error) {
+        console.error('Error:', error);
+        showError(error.message || 'Error al procesar pago');
+        form.style.display = 'block';
+        loading.classList.remove('show');
+      }
+    });
+  </script>
 </body>
 </html>
-
