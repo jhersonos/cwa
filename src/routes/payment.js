@@ -1,4 +1,5 @@
 // src/routes/payment.js
+import crypto from "crypto";
 import { MercadoPagoConfig, Preference, Payment } from "mercadopago";
 import {
   createUnlockTokenAfterPayment,
@@ -74,6 +75,9 @@ export default async function paymentRoutes(fastify) {
    * Precio y duración para checkout público
    */
   fastify.get("/api/payment/config", async (_req, reply) => {
+    const pubRaw = process.env.MERCADOPAGO_PUBLIC_KEY;
+    const publicKey =
+      pubRaw && String(pubRaw).trim() !== "" ? String(pubRaw).trim() : null;
     return reply.send({
       priceUsd: getUnlockPriceUsd(),
       /** Monto y moneda usados en la preferencia MP (pueden diferir de USD). */
@@ -82,6 +86,10 @@ export default async function paymentRoutes(fastify) {
       durationDays: getUnlockDurationDays(),
       currency: "USD",
       mercadoPagoEnabled: !!mpToken,
+      /** Clave pública para Checkout API / Bricks (solo si está definida). */
+      mercadoPagoPublicKey: publicKey,
+      /** Pago con tarjeta embebido en /payment (sin redirigir al login de MP). Requiere ACCESS_TOKEN + PUBLIC_KEY. */
+      mercadoPagoEmbedded: !!(mpToken && publicKey),
       mercadoPagoSandbox: isMercadoPagoSandboxToken(mpToken),
       mercadoPagoCheckoutMode: process.env.MERCADOPAGO_CHECKOUT_MODE || "auto",
       paypalEnabled: isPayPalConfigured(),
@@ -180,6 +188,150 @@ export default async function paymentRoutes(fastify) {
       return reply.code(500).send({
         error: "Preference creation failed",
         message: error.message,
+      });
+    }
+  });
+
+  /**
+   * POST /api/payment/mercadopago/card-payment
+   * Checkout API: crea el pago con el token del Card Payment Brick (pago en tu sitio, sin Checkout Pro).
+   */
+  fastify.post("/api/payment/mercadopago/card-payment", async (req, reply) => {
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const portalId = String(body.portalId ?? "").trim();
+    const email = String(body.email ?? body.payer?.email ?? "").trim();
+    const token = body.token;
+    const payment_method_id = body.payment_method_id;
+
+    if (!portalId || !email) {
+      return reply.code(400).send({
+        error: "Missing fields",
+        message: "Se requiere portalId y email",
+      });
+    }
+    if (!token || !payment_method_id) {
+      return reply.code(400).send({
+        error: "Missing payment fields",
+        message: "Faltan datos del formulario de tarjeta (token o método de pago).",
+      });
+    }
+
+    if (!paymentClient || !mpToken) {
+      return reply.code(503).send({
+        error: "Payment unavailable",
+        message: "Mercado Pago no está configurado en el servidor.",
+      });
+    }
+
+    const baseUrl = (process.env.BASE_URL || "https://cwa.estado7.com").replace(/\/$/, "");
+    const transaction_amount = getMercadoPagoUnitPrice();
+    const idempotencyKey = crypto.randomUUID();
+    const installments = Math.min(
+      48,
+      Math.max(1, parseInt(String(body.installments ?? "1"), 10) || 1)
+    );
+
+    const issuerRaw = body.issuer_id;
+    let issuerNum;
+    if (issuerRaw != null && issuerRaw !== "") {
+      const n = Number(issuerRaw);
+      if (Number.isFinite(n)) issuerNum = n;
+    }
+
+    const payerIdentification = body.payer?.identification;
+    const paymentBody = {
+      transaction_amount,
+      token,
+      description: `Auditoría Completa - Cost CRM Risk Scanner (${getUnlockDurationDays()} días)`,
+      installments,
+      payment_method_id: String(payment_method_id),
+      payer: {
+        email,
+        ...(payerIdentification?.type && payerIdentification?.number
+          ? {
+              identification: {
+                type: payerIdentification.type,
+                number: String(payerIdentification.number),
+              },
+            }
+          : {}),
+      },
+      metadata: {
+        portal_id: portalId,
+        email,
+      },
+      external_reference: `CWA-${portalId}-${Date.now()}`,
+      statement_descriptor: "CWA AUDIT",
+      notification_url: `${baseUrl}/api/payment/webhook`,
+      binary_mode: getMercadoPagoBinaryMode(),
+    };
+    if (issuerNum !== undefined) {
+      paymentBody.issuer_id = issuerNum;
+    }
+
+    try {
+      const result = await paymentClient.create({
+        body: paymentBody,
+        requestOptions: { idempotencyKey },
+      });
+
+      const paymentId = result.id != null ? String(result.id) : null;
+      const status = result.status;
+
+      fastify.log.info(
+        {
+          paymentId,
+          status,
+          status_detail: result.status_detail,
+          portalId,
+        },
+        "MP card payment API create result"
+      );
+
+      if (status === "approved" && paymentId) {
+        await createUnlockTokenAfterPayment(fastify, {
+          portalId,
+          paymentReference: paymentId,
+          email,
+        });
+        const redirectUrl = `${baseUrl}/payment/success?payment_id=${encodeURIComponent(
+          paymentId
+        )}&status=approved`;
+        return reply.send({
+          ok: true,
+          status,
+          payment_id: paymentId,
+          redirect_url: redirectUrl,
+        });
+      }
+
+      if (
+        status === "pending" ||
+        status === "in_process" ||
+        status === "authorized"
+      ) {
+        return reply.send({
+          ok: true,
+          status,
+          payment_id: paymentId,
+          redirect_url: `${baseUrl}/payment/pending`,
+          message: "Pago pendiente de confirmación.",
+        });
+      }
+
+      return reply.code(402).send({
+        ok: false,
+        status,
+        status_detail: result.status_detail,
+        message:
+          "El pago no fue aprobado. Prueba con otra tarjeta o revisa los datos.",
+      });
+    } catch (err) {
+      fastify.log.error({ err, portalId }, "MP card payment create failed");
+      return reply.code(500).send({
+        ok: false,
+        error: "payment_failed",
+        message: err?.message || "Error al procesar el pago",
       });
     }
   });
@@ -692,6 +844,14 @@ export default async function paymentRoutes(fastify) {
         },
         mercadoPago: {
           configured: mercadoPagoConfigured,
+          publicKey: process.env.MERCADOPAGO_PUBLIC_KEY
+            ? "configured"
+            : "missing",
+          embeddedReady: !!(
+            mercadoPagoConfigured &&
+            process.env.MERCADOPAGO_PUBLIC_KEY &&
+            String(process.env.MERCADOPAGO_PUBLIC_KEY).trim() !== ""
+          ),
           accessToken: mercadoPagoConfigured ? "configured" : "missing",
           tokenPrefix: mercadoPagoConfigured
             ? String(process.env.MERCADOPAGO_ACCESS_TOKEN).slice(0, 5) + "…"

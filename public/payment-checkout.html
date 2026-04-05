@@ -363,6 +363,45 @@
       border-radius: 4px;
     }
 
+    .mp-embedded-wrap {
+      display: none;
+      margin-bottom: 20px;
+      padding: 20px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+    }
+
+    .embed-lead {
+      color: var(--muted-2);
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+
+    #cardPaymentBrick_container {
+      min-height: 120px;
+    }
+
+    .btn-fallback-mp {
+      margin-top: 16px;
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted-2);
+      background: transparent;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .btn-fallback-mp:hover {
+      color: var(--text);
+      border-color: rgba(255, 77, 0, 0.45);
+    }
+
     .loading {
       display: none;
       text-align: center;
@@ -533,6 +572,17 @@
       
               <div class="payment-methods" id="payment-methods">
                 <h3 id="payment-methods-title">Método de pago</h3>
+
+                <div id="mp-embedded-wrap" class="mp-embedded-wrap" aria-live="polite">
+                  <p class="embed-lead">
+                    Paga con <strong>tarjeta</strong> aquí mismo (Checkout API). No hace falta iniciar sesión en Mercado Pago.
+                    Los medios disponibles dependen de tu cuenta MP y país.
+                  </p>
+                  <div id="cardPaymentBrick_container"></div>
+                  <button type="button" class="btn-fallback-mp" id="mp-fallback-checkout">
+                    Preferir checkout Mercado Pago (billetera, Yape u otros medios)
+                  </button>
+                </div>
       
                 <button type="submit" class="cta-button" id="submit-btn">
                   Activar auditoría y pagar con Mercado Pago →
@@ -561,7 +611,7 @@
       </div>
 
       <div class="secure-badge">
-        Pagos seguros con Mercado Pago y PayPal · Acceso asociado automáticamente a tu portal
+        Pagos seguros con Mercado Pago (embebido o checkout clásico) y PayPal · Acceso asociado a tu portal
       </div>
 
       <div class="footer-note">
@@ -570,6 +620,7 @@
     </div>
   </div>
 
+  <script src="https://sdk.mercadopago.com/js/v2"></script>
   <script>
     const form = document.getElementById('checkout-form');
     const submitBtn = document.getElementById('submit-btn');
@@ -592,9 +643,13 @@
       priceUsd: 5,
       durationDays: 30,
       mercadoPagoEnabled: true,
+      mercadoPagoEmbedded: false,
+      mercadoPagoPublicKey: null,
       mercadoPagoSandbox: false,
       paypalEnabled: false
     };
+
+    let mpBrickMounted = false;
 
     (async function loadConfig() {
       try {
@@ -620,11 +675,13 @@
 
       const paypalUnavailable = document.getElementById('paypal-unavailable');
       const methodsTitle = document.getElementById('payment-methods-title');
+      const mpEmbeddedWrap = document.getElementById('mp-embedded-wrap');
 
       if (!payConfig.mercadoPagoEnabled) {
         submitBtn.disabled = true;
         document.getElementById('mp-hint').textContent =
           'Mercado Pago no está disponible en este servidor.';
+        mpEmbeddedWrap.style.display = 'none';
       }
 
       if (payConfig.paypalEnabled) {
@@ -646,7 +703,98 @@
             '<strong>Ningún método de pago está configurado.</strong> Contacta soporte.';
         }
       }
+
+      if (payConfig.mercadoPagoEnabled && payConfig.mercadoPagoEmbedded && payConfig.mercadoPagoPublicKey) {
+        mpEmbeddedWrap.style.display = 'block';
+        submitBtn.style.display = 'none';
+        document.getElementById('mp-hint').textContent =
+          'Completa Portal ID y email arriba, luego los datos de tarjeta abajo. PayPal sigue disponible si está activo.';
+        await initMercadoPagoBrick();
+      } else {
+        mpEmbeddedWrap.style.display = 'none';
+        submitBtn.style.display = 'block';
+      }
     })();
+
+    async function initMercadoPagoBrick() {
+      if (mpBrickMounted) return;
+      if (typeof MercadoPago === 'undefined') {
+        showError('No se cargó el SDK de Mercado Pago. Recarga la página o usa el checkout clásico.');
+        return;
+      }
+      const amount = Number(
+        payConfig.checkoutPrice != null ? payConfig.checkoutPrice : payConfig.priceUsd || 0
+      );
+      if (!amount || amount <= 0) {
+        showError('Monto de checkout inválido.');
+        return;
+      }
+      try {
+        const mp = new MercadoPago(payConfig.mercadoPagoPublicKey);
+        const bricksBuilder = mp.bricks();
+        await bricksBuilder.create('cardPayment', 'cardPaymentBrick_container', {
+          initialization: { amount },
+          customization: {
+            visual: { style: { theme: 'dark' } },
+          },
+          callbacks: {
+            onReady: () => {
+              mpBrickMounted = true;
+            },
+            onSubmit: (formData) => {
+              return new Promise((resolve, reject) => {
+                const portalId = document.getElementById('portal-id').value.trim();
+                const email = document.getElementById('email').value.trim();
+                if (!portalId || !email) {
+                  showError('Completa Portal ID y email antes de pagar.');
+                  reject(new Error('validation'));
+                  return;
+                }
+                fetch('/api/payment/mercadopago/card-payment', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(
+                    Object.assign({}, formData, {
+                      portalId,
+                      email,
+                    })
+                  ),
+                })
+                  .then(async (r) => {
+                    const data = await r.json().catch(() => ({}));
+                    if (r.status === 402 || r.status === 400) {
+                      throw new Error(
+                        data.message || data.status_detail || 'Pago rechazado'
+                      );
+                    }
+                    if (!r.ok) {
+                      throw new Error(
+                        data.message || data.error || 'Error al procesar el pago'
+                      );
+                    }
+                    if (data.redirect_url) {
+                      window.location.href = data.redirect_url;
+                    }
+                    resolve(data);
+                  })
+                  .catch((e) => {
+                    showError(e.message || 'Error al procesar el pago');
+                    reject(e);
+                  });
+              });
+            },
+            onError: () => {
+              showError('Revisa los datos de la tarjeta e intenta de nuevo.');
+            },
+          },
+        });
+      } catch (e) {
+        console.error(e);
+        showError(
+          'No se pudo cargar el formulario de tarjeta. Usa el enlace de checkout Mercado Pago abajo o PayPal.'
+        );
+      }
+    }
 
     function getFormValues() {
       return {
@@ -705,9 +853,7 @@
       }
     });
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
+    async function redirectToCheckoutPro() {
       const portalId = document.getElementById('portal-id').value.trim();
       const email = document.getElementById('email').value.trim();
 
@@ -761,6 +907,21 @@
         form.style.display = 'block';
         loading.classList.remove('show');
       }
+    }
+
+    document.getElementById('mp-fallback-checkout').addEventListener('click', () => {
+      redirectToCheckoutPro();
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      if (payConfig.mercadoPagoEmbedded) {
+        showError('Usa el formulario de tarjeta más abajo o el enlace de checkout Mercado Pago (otros medios).');
+        return;
+      }
+
+      await redirectToCheckoutPro();
     });
   </script>
 </body>
