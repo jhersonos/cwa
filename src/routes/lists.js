@@ -4,9 +4,11 @@ import { getListPreview } from "../services/listsPreview.service.js";
 /**
  * Filtro de propiedad de fecha: valor entre dos puntos rodantes desde HOY (TIME_RANGED).
  * Sustituye RANGE_COMPARISON (ya no válido en Lists API v3 público).
- * @param {string} propertyName - internal name (p. ej. hs_lastactivitydate, createdate)
+ * @param {string} propertyName - internal name (p. ej. notes_last_updated, createdate)
  * @param {number} lowerDaysFromToday - más negativo = más al pasado (p. ej. -3650)
  * @param {number} upperDaysFromToday - menos negativo (p. ej. -180); debe ser > lowerDaysFromToday
+ *
+ * HubSpot Lists API: con límite inferior en TODAY, el superior debe usar NOW (evita error 400).
  */
 function rollingDateBetweenProperty(propertyName, lowerDaysFromToday, upperDaysFromToday) {
   return {
@@ -28,7 +30,7 @@ function rollingDateBetweenProperty(propertyName, lowerDaysFromToday, upperDaysF
       upperBoundTimePoint: {
         timezoneSource: "CUSTOM",
         zoneId: "UTC",
-        indexReference: { referenceType: "TODAY" },
+        indexReference: { referenceType: "NOW" },
         offset: { days: upperDaysFromToday },
         timeType: "INDEXED",
       },
@@ -201,7 +203,7 @@ const listsRoutes = async (fastify, options) => {
                 filterBranchOperator: 'AND',
                 filters: [
                   // Última actividad entre hace ~10 años y hace 180 días (= inactivos 180+ días)
-                  rollingDateBetweenProperty('hs_lastactivitydate', -3650, -180),
+                  rollingDateBetweenProperty("notes_last_updated", -3650, -180),
                 ],
               },
             ],
@@ -218,13 +220,13 @@ const listsRoutes = async (fastify, options) => {
                 filterBranchType: 'AND',
                 filterBranchOperator: 'AND',
                 filters: [
-                  rollingDateBetweenProperty('createdate', -3650, -90),
+                  rollingDateBetweenProperty("createdate", -3650, -90),
                   {
-                    filterType: 'PROPERTY',
-                    property: 'hs_lastactivitydate',
+                    filterType: "PROPERTY",
+                    property: "notes_last_updated",
                     operation: {
-                      operationType: 'ALL_PROPERTY',
-                      operator: 'IS_UNKNOWN',
+                      operationType: "ALL_PROPERTY",
+                      operator: "IS_UNKNOWN",
                     },
                   },
                 ],
@@ -346,23 +348,26 @@ const listsRoutes = async (fastify, options) => {
             ],
           },
         },
-        'deals-stuck-stage': {
-          name: '[CWA] Deals estancados por etapa',
-          objectTypeId: '0-3',
+        "deals-stuck-stage": {
+          name: "[CWA] Deals abiertos sin actividad reciente (+30 días)",
+          objectTypeId: "0-3",
           filterBranch: {
-            filterBranchType: 'OR',
-            filterBranchOperator: 'OR',
+            filterBranchType: "OR",
+            filterBranchOperator: "OR",
             filterBranches: [
               {
-                filterBranchType: 'AND',
-                filterBranchOperator: 'AND',
+                filterBranchType: "AND",
+                filterBranchOperator: "AND",
                 filters: [
-                  // En etapa "cita programada" desde hace 30+ días (ajustable en UI HubSpot si cambia pipeline)
-                  rollingDateBetweenProperty(
-                    'hs_date_entered_appointmentscheduled',
-                    -3650,
-                    -30
-                  ),
+                  {
+                    filterType: "PROPERTY",
+                    property: "closedate",
+                    operation: {
+                      operationType: "ALL_PROPERTY",
+                      operator: "IS_UNKNOWN",
+                    },
+                  },
+                  rollingDateBetweenProperty("notes_last_updated", -3650, -30),
                 ],
               },
             ],

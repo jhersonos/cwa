@@ -17,7 +17,7 @@ const LIST_NAMES = {
   "deals-without-amount": "[CWA] Deals sin monto",
   "deals-without-owner": "[CWA] Deals sin owner",
   "deals-inactive-180": "[CWA] Deals inactivos +180 días",
-  "deals-stuck-stage": "[CWA] Deals estancados por etapa",
+  "deals-stuck-stage": "[CWA] Deals abiertos sin actividad reciente (+30 días)",
   "deals-high-risk": "[CWA] Deals de alto riesgo",
 };
 
@@ -143,7 +143,7 @@ function dealRow(portalId, d) {
     name: p.dealname || "(sin nombre)",
     stage: p.dealstage || "—",
     amount: p.amount || "—",
-    extra: p.notes_last_updated || p.hs_date_entered_appointmentscheduled || "—",
+    extra: p.notes_last_updated || "—",
     url: `https://app.hubspot.com/contacts/${portalId}/deal/${d.id}`,
   };
 }
@@ -218,9 +218,9 @@ export async function getListPreview(fastify, portalId, listId, token, limit = 1
       const cutoff = Date.now() - 180 * 24 * 60 * 60 * 1000;
       const raw = await fetchContactsUpTo(
         token,
-        ["hs_lastactivitydate", "email", "firstname", "lastname", "lifecyclestage"],
+        ["notes_last_updated", "email", "firstname", "lastname", "lifecyclestage"],
         (c) => {
-          const d = c.properties?.hs_lastactivitydate;
+          const d = c.properties?.notes_last_updated;
           if (!d) return false;
           return new Date(d).getTime() < cutoff;
         },
@@ -229,11 +229,11 @@ export async function getListPreview(fastify, portalId, listId, token, limit = 1
       columns = [
         { key: "name", label: "Nombre" },
         { key: "email", label: "Email" },
-        { key: "extra", label: "Última actividad" },
+        { key: "extra", label: "Últ. notas" },
       ];
       rows = raw.map((c) => {
         const r = contactRow(portalId, c);
-        r.extra = c.properties?.hs_lastactivitydate || "—";
+        r.extra = c.properties?.notes_last_updated || "—";
         return r;
       });
       break;
@@ -242,12 +242,12 @@ export async function getListPreview(fastify, portalId, listId, token, limit = 1
       const cutoff90 = Date.now() - 90 * 24 * 60 * 60 * 1000;
       const raw = await fetchContactsUpTo(
         token,
-        ["createdate", "hs_lastactivitydate", "email", "firstname", "lastname"],
+        ["createdate", "notes_last_updated", "email", "firstname", "lastname"],
         (c) => {
           const p = c.properties || {};
           const created = p.createdate;
           if (!created || new Date(created).getTime() >= cutoff90) return false;
-          return !p.hs_lastactivitydate;
+          return !p.notes_last_updated;
         },
         L
       );
@@ -349,22 +349,24 @@ export async function getListPreview(fastify, portalId, listId, token, limit = 1
       const cutoff30 = Date.now() - 30 * 24 * 60 * 60 * 1000;
       const raw = await fetchDealsUpTo(
         token,
-        ["dealname", "dealstage", "amount", "hs_date_entered_appointmentscheduled"],
+        ["dealname", "dealstage", "amount", "closedate", "notes_last_updated"],
         (d) => {
-          const t = d.properties?.hs_date_entered_appointmentscheduled;
-          if (!t) return false;
-          return new Date(t).getTime() < cutoff30;
+          const p = d.properties || {};
+          if (p.closedate) return false;
+          const n = p.notes_last_updated;
+          if (!n) return false;
+          return new Date(n).getTime() < cutoff30;
         },
         L
       );
       columns = [
         { key: "name", label: "Deal" },
         { key: "stage", label: "Etapa" },
-        { key: "extra", label: "Entró a cita" },
+        { key: "extra", label: "Últ. notas" },
       ];
       rows = raw.map((d) => {
         const r = dealRow(portalId, d);
-        r.extra = d.properties?.hs_date_entered_appointmentscheduled || "—";
+        r.extra = d.properties?.notes_last_updated || "—";
         return r;
       });
       break;
