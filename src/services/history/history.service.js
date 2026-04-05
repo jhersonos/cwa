@@ -79,10 +79,16 @@ export async function saveScanSnapshot(server, data) {
     contactsScore = 100,
     dealsScore = 100,
     companiesScore = 100,
-    usersScore = 100
+    usersScore = 100,
+    /** Objeto respuesta scan-v3 completo (opcional); se persiste como JSON */
+    resultPayload = null
   } = data;
 
   const db = server.db;
+  const payloadJson =
+    resultPayload != null && typeof resultPayload === "object"
+      ? JSON.stringify(resultPayload)
+      : null;
 
   try {
     /* -------------------------------------------------
@@ -131,6 +137,7 @@ export async function saveScanSnapshot(server, data) {
           deals_score = ?,
           companies_score = ?,
           users_score = ?,
+          result_payload = ?,
           created_at = CURRENT_TIMESTAMP
         WHERE id = ?
         `,
@@ -159,6 +166,7 @@ export async function saveScanSnapshot(server, data) {
           dealsScore,
           companiesScore,
           usersScore,
+          payloadJson,
           rows[0].id
         ]
       );
@@ -200,8 +208,9 @@ export async function saveScanSnapshot(server, data) {
         contacts_score,
         deals_score,
         companies_score,
-        users_score
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        users_score,
+        result_payload
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         portalId,
@@ -228,7 +237,8 @@ export async function saveScanSnapshot(server, data) {
         contactsScore,
         dealsScore,
         companiesScore,
-        usersScore
+        usersScore,
+        payloadJson
       ]
     );
 
@@ -275,5 +285,44 @@ export async function getScanHistory(server, portalId, limit = 10) {
       "Failed fetching scan history"
     );
     return [];
+  }
+}
+
+/**
+ * Último análisis completo guardado (para rehidratación tras recarga; no consume cuota).
+ * @returns {Promise<{ payload: object, scannedAt: string } | null>}
+ */
+export async function getLastScanResult(server, portalId) {
+  try {
+    const [rows] = await server.db.query(
+      `
+      SELECT result_payload, created_at
+      FROM scan_history
+      WHERE portal_id = ?
+        AND result_payload IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT 1
+      `,
+      [portalId]
+    );
+    if (!rows?.length) return null;
+    const raw = rows[0].result_payload;
+    if (raw == null) return null;
+    let payload;
+    if (typeof raw === "string") {
+      payload = JSON.parse(raw);
+    } else if (typeof raw === "object") {
+      payload = raw;
+    } else {
+      return null;
+    }
+    const scannedAt =
+      rows[0].created_at instanceof Date
+        ? rows[0].created_at.toISOString()
+        : String(rows[0].created_at);
+    return { payload, scannedAt };
+  } catch (err) {
+    server.log.warn({ err, portalId }, "getLastScanResult failed");
+    return null;
   }
 }

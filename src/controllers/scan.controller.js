@@ -19,7 +19,8 @@ import { calculateAllTrafficLights } from "../services/analysis/trafficLight.ser
 
 import {
   saveScanSnapshot,
-  getFreeScanQuota
+  getFreeScanQuota,
+  getLastScanResult
 } from "../services/history/history.service.js";
 import { calculateBenchmark } from "../services/analysis/benchmark.service.js";
 import { checkUnlockStatus } from "../services/unlock/token.service.js";
@@ -163,45 +164,7 @@ export async function runScanV3(req, reply) {
     });
 
     /* ------------------------
-       FASE 9 — HISTORY (NO BLOQUEANTE)
-    ------------------------ */
-    try {
-      await saveScanSnapshot(req.server, {
-        portalId,
-        efficiencyScore: efficiency.score,
-        efficiencyLevel: efficiency.level,
-        hasLimitedVisibility: efficiency.hasLimitedVisibility,
-        contactsTotal: contacts.total,
-        usersTotal: users.total,
-        criticalInsights: prioritization.summary.critical,
-        warningInsights: prioritization.summary.warning,
-        // Nuevas métricas
-        dealsTotal: deals.total,
-        dealsWithoutContact: deals.withoutContact?.count || 0,
-        dealsWithoutOwner: deals.withoutOwner?.count || 0,
-        dealsWithoutPrice: deals.withoutPrice?.count || 0,
-        dealsInactive: deals.inactive?.count || 0,
-        companiesTotal: companies.total,
-        companiesWithoutDomain: companies.withoutDomain?.count || 0,
-        companiesWithoutOwner: companies.withoutOwner?.count || 0,
-        companiesInactive: companies.inactive?.count || 0,
-        toolsInUse: tools.inUse?.length || 0,
-        toolsTotal: tools.totalTools || 0,
-        toolsUsagePercentage: tools.usagePercentage || 0,
-        contactsScore: trafficLights.contacts?.score || 100,
-        dealsScore: trafficLights.deals?.score || 100,
-        companiesScore: trafficLights.companies?.score || 100,
-        usersScore: trafficLights.users?.score || 100
-      });
-    } catch (err) {
-      req.server.log.warn(
-        { portalId },
-        "Failed saving scan history"
-      );
-    }
-
-    /* ------------------------
-       FASE 10 — BENCHMARK (NO BLOQUEANTE)
+       FASE 9 — BENCHMARK (NO BLOQUEANTE)
     ------------------------ */
     let benchmark = null;
     try {
@@ -218,31 +181,68 @@ export async function runScanV3(req, reply) {
 
     const duration = Date.now() - start;
 
+    const responseBody = {
+      version: "v3",
+      portalId,
+      efficiency,
+      benchmark,
+      prioritization,
+      insights,
+      contacts,
+      users,
+      deals,
+      companies,
+      tools,
+      trafficLights,
+      meta: {
+        durationMs: duration
+      }
+    };
+
+    /* ------------------------
+       FASE 10 — HISTORY + PAYLOAD COMPLETO (NO BLOQUEANTE; rehidratación UI)
+    ------------------------ */
+    try {
+      await saveScanSnapshot(req.server, {
+        portalId,
+        efficiencyScore: efficiency.score,
+        efficiencyLevel: efficiency.level,
+        hasLimitedVisibility: efficiency.hasLimitedVisibility,
+        contactsTotal: contacts.total,
+        usersTotal: users.total,
+        criticalInsights: prioritization.summary.critical,
+        warningInsights: prioritization.summary.warning,
+        dealsTotal: deals.total,
+        dealsWithoutContact: deals.withoutContact?.count || 0,
+        dealsWithoutOwner: deals.withoutOwner?.count || 0,
+        dealsWithoutPrice: deals.withoutPrice?.count || 0,
+        dealsInactive: deals.inactive?.count || 0,
+        companiesTotal: companies.total,
+        companiesWithoutDomain: companies.withoutDomain?.count || 0,
+        companiesWithoutOwner: companies.withoutOwner?.count || 0,
+        companiesInactive: companies.inactive?.count || 0,
+        toolsInUse: tools.inUse?.length || 0,
+        toolsTotal: tools.totalTools || 0,
+        toolsUsagePercentage: tools.usagePercentage || 0,
+        contactsScore: trafficLights.contacts?.score || 100,
+        dealsScore: trafficLights.deals?.score || 100,
+        companiesScore: trafficLights.companies?.score || 100,
+        usersScore: trafficLights.users?.score || 100,
+        resultPayload: responseBody
+      });
+    } catch (err) {
+      req.server.log.warn(
+        { portalId },
+        "Failed saving scan history"
+      );
+    }
+
     req.server.log.info(
       { portalId, duration },
       "Scan V3 completed"
     );
 
-     /* ------------------------
-        RESPONSE FINAL
-     ------------------------ */
-     return {
-       version: "v3",
-       portalId,
-       efficiency,
-       benchmark,
-       prioritization,
-       insights,
-       contacts,
-       users,
-       deals,
-       companies,
-       tools,
-       trafficLights,
-       meta: {
-         durationMs: duration
-       }
-     };
+    return responseBody;
   } catch (err) {
     req.server.log.error(
       { err, portalId },
@@ -253,5 +253,35 @@ export async function runScanV3(req, reply) {
       error: "Scan failed",
       message: err.message || "Unexpected error"
     });
+  }
+}
+
+/**
+ * GET /api/scan-v3/last?portalId=
+ * Devuelve el último análisis completo persistido (no consume cuota free).
+ */
+export async function getLastScanV3(req, reply) {
+  const { portalId } = req.query;
+
+  if (!portalId) {
+    return reply.code(400).send({ error: "Missing portalId" });
+  }
+
+  try {
+    const last = await getLastScanResult(req.server, portalId);
+    if (!last?.payload) {
+      return reply.code(404).send({
+        error: "NO_SCAN_STORED",
+        message: "No hay análisis guardado para este portal. Ejecuta un análisis en la app."
+      });
+    }
+    return {
+      portalId,
+      scannedAt: last.scannedAt,
+      result: last.payload
+    };
+  } catch (err) {
+    req.server.log.error({ err, portalId }, "getLastScanV3 failed");
+    return reply.code(500).send({ error: "Failed to load last scan" });
   }
 }
