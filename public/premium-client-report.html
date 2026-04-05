@@ -317,8 +317,10 @@
 
       html += "<h2>Impacto estimado (modelo interno)</h2>";
       var fin = payload.financial || {};
-      html += '<p class="fin">' + fmtEuro(fin.eurosMes) + " / mes";
-      html += "<small>" + fmtEuro(fin.eurosAno) + " / año · estimación orientativa, no garantía de ahorro</small></p>";
+      var mes = fin.usdMes != null ? fin.usdMes : fin.eurosMes;
+      var ano = fin.usdAno != null ? fin.usdAno : fin.eurosAno;
+      html += '<p class="fin">' + fmtUsd(mes) + " / mes";
+      html += "<small>" + fmtUsd(ano) + " / año · estimación orientativa, no garantía de ahorro (USD)</small></p>";
 
       html += "<h2>Prioridades (títulos de hallazgos)</h2>";
       html += "<ul class='titles'>";
@@ -334,9 +336,9 @@
 
       root.innerHTML = html;
 
-      function fmtEuro(n) {
+      function fmtUsd(n) {
         if (n === undefined || n === null || isNaN(n)) return "—";
-        return Math.round(Number(n)).toLocaleString("es-ES") + " €";
+        return "US$" + Math.round(Number(n)).toLocaleString("en-US");
       }
       function esc(s) {
         if (!s) return "";

@@ -184,7 +184,7 @@
     </div>
 
     <div class="section">
-        <h2>Impacto financiero estimado</h2>
+        <h2>Impacto financiero estimado (USD)</h2>
         <p id="impact-monthly" class="impact-total">—</p>
         <p id="impact-yearly" class="impact-yearly">—</p>
         <p class="disclaimer">
@@ -270,7 +270,7 @@
             }
 
             // Impact
-            var fmt = function(n) { return parseInt(n, 10).toLocaleString('es-ES') + ' €'; };
+            var fmt = function(n) { return 'US$' + parseInt(n, 10).toLocaleString('en-US'); };
             document.getElementById('impact-monthly').textContent = impactMonthly ? (fmt(impactMonthly) + '/mes') : '—';
             document.getElementById('impact-yearly').textContent = impactYearly ? (fmt(impactYearly) + '/año') : '—';
         })();
