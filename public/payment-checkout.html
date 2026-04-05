@@ -410,7 +410,20 @@
       line-height: 1.5;
     }
 
+    .container {
+        max-width: 1280px;
+    }
+
+    .content-box-flex {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 50px;
+    }
+
     @media (max-width: 640px) {
+        .content-box-flex {
+        display: grid;
+        grid-template-columns: 1fr;}
       .content {
         padding: 24px;
       }
@@ -430,115 +443,121 @@
     <div class="top-bar"></div>
 
     <div class="content">
-      <div class="eyebrow">Auditoría completa · Acceso inmediato</div>
-
-      <h1>
-        Activa la <span class="headline-accent">auditoría completa</span>
-      </h1>
-
-      <p class="subtitle">
-        Este diagnóstico detectó problemas que pueden afectar directamente tu pipeline,
-        la calidad de tus datos y el seguimiento comercial. Desbloquea la auditoría
-        completa para pasar del insight a la acción.
-      </p>
-
-      <div class="impact-box">
-        <h2>🚨 Qué te permite resolver</h2>
-        <ul>
-          <li>Identificar exactamente qué registros están afectando tu operación.</li>
-          <li>Corregir deals, contactos y empresas con listas listas para trabajar en HubSpot.</li>
-          <li>Compartir un resumen ejecutivo con tu equipo o agencia para ejecutar mejoras.</li>
-        </ul>
-      </div>
-
-      <div class="pricing-card">
-        <div class="price-label">Acceso completo por 30 días</div>
-        <div class="price" id="price-display">— USD</div>
-        <p class="price-detail" id="price-detail">Cargando…</p>
-        <p class="price-note">
-          Un solo pago. Menos de lo que cuesta perder un solo deal mal gestionado.
-        </p>
-      </div>
-
-      <div class="features">
-        <h3>Con la auditoría completa podrás:</h3>
-        <ul>
-          <li>Crear listas dinámicas en HubSpot para cada problema detectado.</li>
-          <li>Previsualizar registros afectados antes de crear cada lista.</li>
-          <li>Exportar información útil para limpieza, seguimiento o trabajo con agencias.</li>
-          <li>Generar un resumen ejecutivo en PDF para compartir con dirección o RevOps.</li>
-          <li>Convertir el diagnóstico en un plan de acción real dentro de tu portal.</li>
-          <li>Monitorear mejoras y hacer seguimiento continuo de la eficiencia del CRM.</li>
-        </ul>
-      </div>
-
-      <div class="warning-box">
-        <strong>Si no corriges estos problemas:</strong>
-        <ul>
-          <li>El pipeline puede seguir siendo poco confiable.</li>
-          <li>Se pueden perder oportunidades por falta de seguimiento u ownership.</li>
-          <li>El equipo seguirá operando con datos incompletos o desordenados.</li>
-        </ul>
-      </div>
-
-      <div id="error" class="error"></div>
-
-      <form id="checkout-form">
-        <div class="form-group">
-          <label for="portal-id">Portal ID de HubSpot *</label>
-          <input
-            type="text"
-            id="portal-id"
-            name="portalId"
-            required
-            placeholder="Ej: 12345678"
-            pattern="[0-9]+"
-            title="Solo números"
-          />
-          <small class="field-help">
-            Encuentra tu Portal ID en la configuración de HubSpot.
-          </small>
-        </div>
-
-        <div class="form-group">
-          <label for="email">Email *</label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            required
-            placeholder="tu@email.com"
-          />
-          <small class="field-help">
-            Usaremos este email para asociar el desbloqueo a tu portal y confirmar el acceso.
-          </small>
-        </div>
-
-        <div class="payment-methods" id="payment-methods">
-          <h3 id="payment-methods-title">Método de pago</h3>
-
-          <button type="submit" class="cta-button" id="submit-btn">
-            Activar auditoría y pagar con Mercado Pago →
-          </button>
-          <p class="pay-hint" id="mp-hint"></p>
-
-          <button type="button" class="btn-paypal" id="paypal-btn" style="display: none;">
-            Pagar con PayPal
-          </button>
-          <p class="pay-hint" id="paypal-hint"></p>
-        </div>
-
-        <div class="paypal-unavailable" id="paypal-unavailable" aria-live="polite">
-          <strong>PayPal no está activo en este servidor.</strong>
-          El botón de PayPal aparecerá aquí cuando el administrador configure las variables
-          <code>PAYPAL_CLIENT_ID</code> y <code>PAYPAL_CLIENT_SECRET</code> en el entorno del backend
-          (y <code>PAYPAL_MODE=live</code> en producción). Mientras tanto puedes pagar con Mercado Pago.
-        </div>
-      </form>
-
-      <div id="loading" class="loading">
-        <div class="spinner"></div>
-        <p>Preparando checkout seguro…</p>
+      <div class="content-box-flex">
+        <div class="content-header">
+            <div class="eyebrow">Auditoría completa · Acceso inmediato</div>
+    
+          <h1>
+            Activa la <span class="headline-accent">auditoría completa</span>
+          </h1>
+    
+          <p class="subtitle">
+            Este diagnóstico detectó problemas que pueden afectar directamente tu pipeline,
+            la calidad de tus datos y el seguimiento comercial. Desbloquea la auditoría
+            completa para pasar del insight a la acción.
+          </p>
+    
+          <div class="impact-box">
+            <h2>🚨 Qué te permite resolver</h2>
+            <ul>
+              <li>Identificar exactamente qué registros están afectando tu operación.</li>
+              <li>Corregir deals, contactos y empresas con listas listas para trabajar en HubSpot.</li>
+              <li>Compartir un resumen ejecutivo con tu equipo o agencia para ejecutar mejoras.</li>
+            </ul>
+          </div>
+    
+          <div class="pricing-card">
+            <div class="price-label">Acceso completo por 30 días</div>
+            <div class="price" id="price-display">— USD</div>
+            <p class="price-detail" id="price-detail">Cargando…</p>
+            <p class="price-note">
+              Un solo pago. Menos de lo que cuesta perder un solo deal mal gestionado.
+            </p>
+          </div>
+    
+          <div class="features">
+            <h3>Con la auditoría completa podrás:</h3>
+            <ul>
+              <li>Crear listas dinámicas en HubSpot para cada problema detectado.</li>
+              <li>Previsualizar registros afectados antes de crear cada lista.</li>
+              <li>Exportar información útil para limpieza, seguimiento o trabajo con agencias.</li>
+              <li>Generar un resumen ejecutivo en PDF para compartir con dirección o RevOps.</li>
+              <li>Convertir el diagnóstico en un plan de acción real dentro de tu portal.</li>
+              <li>Monitorear mejoras y hacer seguimiento continuo de la eficiencia del CRM.</li>
+            </ul>
+          </div>
+    
+          <div class="warning-box">
+            <strong>Si no corriges estos problemas:</strong>
+            <ul>
+              <li>El pipeline puede seguir siendo poco confiable.</li>
+              <li>Se pueden perder oportunidades por falta de seguimiento u ownership.</li>
+              <li>El equipo seguirá operando con datos incompletos o desordenados.</li>
+            </ul>
+          </div>
+          </div>
+    
+         <div class="payment-form">
+            <div id="error" class="error"></div>
+    
+            <form id="checkout-form">
+              <div class="form-group">
+                <label for="portal-id">Portal ID de HubSpot *</label>
+                <input
+                  type="text"
+                  id="portal-id"
+                  name="portalId"
+                  required
+                  placeholder="Ej: 12345678"
+                  pattern="[0-9]+"
+                  title="Solo números"
+                />
+                <small class="field-help">
+                  Encuentra tu Portal ID en la configuración de HubSpot.
+                </small>
+              </div>
+      
+              <div class="form-group">
+                <label for="email">Email *</label>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  required
+                  placeholder="tu@email.com"
+                />
+                <small class="field-help">
+                  Usaremos este email para asociar el desbloqueo a tu portal y confirmar el acceso.
+                </small>
+              </div>
+      
+              <div class="payment-methods" id="payment-methods">
+                <h3 id="payment-methods-title">Método de pago</h3>
+      
+                <button type="submit" class="cta-button" id="submit-btn">
+                  Activar auditoría y pagar con Mercado Pago →
+                </button>
+                <p class="pay-hint" id="mp-hint"></p>
+      
+                <button type="button" class="btn-paypal" id="paypal-btn" style="display: none;">
+                  Pagar con PayPal
+                </button>
+                <p class="pay-hint" id="paypal-hint"></p>
+              </div>
+      
+              <div class="paypal-unavailable" id="paypal-unavailable" aria-live="polite">
+                <strong>PayPal no está activo en este servidor.</strong>
+                El botón de PayPal aparecerá aquí cuando el administrador configure las variables
+                <code>PAYPAL_CLIENT_ID</code> y <code>PAYPAL_CLIENT_SECRET</code> en el entorno del backend
+                (y <code>PAYPAL_MODE=live</code> en producción). Mientras tanto puedes pagar con Mercado Pago.
+              </div>
+            </form>
+      
+            <div id="loading" class="loading">
+              <div class="spinner"></div>
+              <p>Preparando checkout seguro…</p>
+            </div>
+         </div>
       </div>
 
       <div class="secure-badge">
