@@ -2,6 +2,8 @@
 import { MercadoPagoConfig, Preference, Payment } from "mercadopago";
 import {
   createUnlockTokenAfterPayment,
+  getMercadoPagoCurrencyId,
+  getMercadoPagoUnitPrice,
   getUnlockDurationDays,
   getUnlockPriceUsd,
 } from "../services/payment/unlockFromPayment.service.js";
@@ -11,9 +13,38 @@ import {
   isPayPalConfigured,
 } from "../services/payment/paypal.service.js";
 
-/** Credenciales de prueba MP usan token que empieza por TEST-; el checkout debe usar sandbox_init_point, no init_point. */
+/** Credenciales de prueba MP suelen usar token TEST-…; el checkout debe usar sandbox_init_point, no init_point. */
 function isMercadoPagoSandboxToken(token) {
   return typeof token === "string" && token.startsWith("TEST-");
+}
+
+/**
+ * auto: TEST- → sandbox; sandbox|production fuerza la URL del checkout.
+ */
+function resolveMercadoPagoCheckoutUrl(preference, mpToken) {
+  const mode = (process.env.MERCADOPAGO_CHECKOUT_MODE || "auto").toLowerCase();
+  const sandboxUrl = preference.sandbox_init_point;
+  const prodUrl = preference.init_point;
+  if (mode === "sandbox") return sandboxUrl || prodUrl;
+  if (mode === "production") return prodUrl || sandboxUrl;
+  const isTest = isMercadoPagoSandboxToken(mpToken);
+  return isTest ? sandboxUrl || prodUrl : prodUrl || sandboxUrl;
+}
+
+/** Extrae ID de pago de distintos formatos de webhook / notificación MP. */
+function extractMercadoPagoPaymentId(body) {
+  if (!body || typeof body !== "object") return null;
+  const idFromData = body.data?.id ?? body.data?.resource_id;
+  if (idFromData != null && String(idFromData).trim() !== "") {
+    return String(idFromData);
+  }
+  if (body.type === "payment" && body.id != null) return String(body.id);
+  const resource = body.resource;
+  if (typeof resource === "string" && resource.includes("/")) {
+    const m = resource.match(/(\d+)\s*$/);
+    if (m) return m[1];
+  }
+  return null;
 }
 
 export default async function paymentRoutes(fastify) {
@@ -32,10 +63,14 @@ export default async function paymentRoutes(fastify) {
   fastify.get("/api/payment/config", async (_req, reply) => {
     return reply.send({
       priceUsd: getUnlockPriceUsd(),
+      /** Monto y moneda usados en la preferencia MP (pueden diferir de USD). */
+      checkoutPrice: getMercadoPagoUnitPrice(),
+      checkoutCurrency: getMercadoPagoCurrencyId(),
       durationDays: getUnlockDurationDays(),
       currency: "USD",
       mercadoPagoEnabled: !!mpToken,
       mercadoPagoSandbox: isMercadoPagoSandboxToken(mpToken),
+      mercadoPagoCheckoutMode: process.env.MERCADOPAGO_CHECKOUT_MODE || "auto",
       paypalEnabled: isPayPalConfigured(),
     });
   });
@@ -61,7 +96,9 @@ export default async function paymentRoutes(fastify) {
       });
     }
 
-    const unitPrice = getUnlockPriceUsd();
+    const unitPrice = getMercadoPagoUnitPrice();
+    const currencyId = getMercadoPagoCurrencyId();
+    const baseUrl = (process.env.BASE_URL || "https://cwa.estado7.com").replace(/\/$/, "");
 
     try {
       const preference = await preferenceClient.create({
@@ -73,36 +110,46 @@ export default async function paymentRoutes(fastify) {
               description: `Desbloqueo 1 mes (${getUnlockDurationDays()} días) — exportaciones y listas`,
               category_id: "services",
               quantity: 1,
-              currency_id: "USD",
+              currency_id: currencyId,
               unit_price: unitPrice,
             },
           ],
           payer: {
-            email: email
+            email: email,
           },
           metadata: {
             portal_id: portalId,
-            email: email
+            email: email,
           },
           back_urls: {
-            success: `${process.env.BASE_URL || 'https://cwa.estado7.com'}/payment/success`,
-            failure: `${process.env.BASE_URL || 'https://cwa.estado7.com'}/payment/failure`,
-            pending: `${process.env.BASE_URL || 'https://cwa.estado7.com'}/payment/pending`
+            success: `${baseUrl}/payment/success`,
+            failure: `${baseUrl}/payment/failure`,
+            pending: `${baseUrl}/payment/pending`,
           },
-          auto_return: 'approved',
-          notification_url: `${process.env.BASE_URL || 'https://cwa.estado7.com'}/api/payment/webhook`,
-          statement_descriptor: 'CWA AUDIT',
-          external_reference: `CWA-${portalId}-${Date.now()}`
-        }
+          auto_return: "approved",
+          binary_mode: true,
+          notification_url: `${baseUrl}/api/payment/webhook`,
+          statement_descriptor: "CWA AUDIT",
+          external_reference: `CWA-${portalId}-${Date.now()}`,
+        },
       });
 
-      const sandbox = isMercadoPagoSandboxToken(mpToken);
-      const checkoutUrl = sandbox
-        ? preference.sandbox_init_point || preference.init_point
-        : preference.init_point || preference.sandbox_init_point;
+      const checkoutUrl = resolveMercadoPagoCheckoutUrl(preference, mpToken);
+      let checkoutHost = "";
+      try {
+        checkoutHost = checkoutUrl ? new URL(checkoutUrl).hostname : "";
+      } catch (_) {}
 
       fastify.log.info(
-        { portalId, preferenceId: preference.id, sandbox, hasCheckoutUrl: !!checkoutUrl },
+        {
+          portalId,
+          preferenceId: preference.id,
+          currencyId,
+          unitPrice,
+          checkoutHost,
+          checkoutMode: process.env.MERCADOPAGO_CHECKOUT_MODE || "auto",
+          hasCheckoutUrl: !!checkoutUrl,
+        },
         "Payment preference created"
       );
 
@@ -221,19 +268,60 @@ export default async function paymentRoutes(fastify) {
   });
 
   /**
+   * GET /api/payment/webhook
+   * Algunos health-checks o integraciones hacen GET; evita 404 en logs.
+   */
+  fastify.get("/api/payment/webhook", async (_req, reply) => {
+    return reply.code(200).send({ ok: true, hint: "Las notificaciones MP son POST" });
+  });
+
+  /**
    * POST /api/payment/webhook
    * Webhook para notificaciones de MercadoPago
    */
   fastify.post("/api/payment/webhook", async (req, reply) => {
     try {
-      const { type, data } = req.body;
+      let body = req.body;
+      if (typeof body === "string") {
+        try {
+          body = JSON.parse(body);
+        } catch (_) {
+          body = {};
+        }
+      }
 
-      fastify.log.info({ type, data, body: req.body }, "Received payment webhook");
+      const type = body?.type ?? body?.topic;
+      const paymentId = extractMercadoPagoPaymentId(body);
 
-      if (type === "payment" && paymentClient) {
-        const paymentId = data.id;
+      fastify.log.info(
+        {
+          type,
+          paymentIdFromWebhook: paymentId,
+          action: body?.action,
+          liveMode: body?.live_mode,
+          rawKeys: body && typeof body === "object" ? Object.keys(body) : [],
+        },
+        "Received payment webhook"
+      );
 
-        const payment = await paymentClient.get({ id: paymentId });
+      const isPayment = type === "payment" || body?.topic === "payment";
+
+      if (isPayment && paymentClient && paymentId) {
+        let payment;
+        try {
+          payment = await paymentClient.get({ id: paymentId });
+        } catch (getErr) {
+          fastify.log.error(
+            {
+              err: getErr,
+              paymentId,
+              status: getErr?.statusCode ?? getErr?.cause?.status,
+              message: getErr?.message,
+            },
+            "MP webhook: no se pudo obtener el pago (¿404 id inválido o token incorrecto?)"
+          );
+          return reply.code(200).send({ received: true, skipped: "payment_get_failed" });
+        }
 
         fastify.log.info(
           {
@@ -259,16 +347,20 @@ export default async function paymentRoutes(fastify) {
             });
           }
         }
+      } else if (isPayment && !paymentId) {
+        fastify.log.warn({ body: JSON.stringify(body).slice(0, 500) }, "MP webhook: tipo payment sin id extraíble");
       }
 
       return reply.code(200).send({ received: true });
     } catch (error) {
-      fastify.log.error({ 
-        err: error, 
-        message: error.message,
-        stack: error.stack 
-      }, "❌ Error processing webhook");
-      // Siempre responder 200 a webhooks para no reintentarlos
+      fastify.log.error(
+        {
+          err: error,
+          message: error.message,
+          stack: error.stack,
+        },
+        "❌ Error processing webhook"
+      );
       return reply.code(200).send({ received: true, error: error.message });
     }
   });
@@ -496,6 +588,17 @@ export default async function paymentRoutes(fastify) {
         mercadoPago: {
           configured: mercadoPagoConfigured,
           accessToken: mercadoPagoConfigured ? "configured" : "missing",
+          tokenPrefix: mercadoPagoConfigured
+            ? String(process.env.MERCADOPAGO_ACCESS_TOKEN).slice(0, 5) + "…"
+            : null,
+          sandboxDetected: isMercadoPagoSandboxToken(process.env.MERCADOPAGO_ACCESS_TOKEN),
+          checkoutMode: process.env.MERCADOPAGO_CHECKOUT_MODE || "auto",
+          currencyId: getMercadoPagoCurrencyId(),
+          unitPrice: getMercadoPagoUnitPrice(),
+          hints: [
+            "Si el checkout MP muestra error genérico: prueba MERCADOPAGO_CURRENCY_ID=ARS y MERCADOPAGO_UNIT_PRICE acorde (cuentas LATAM a veces no aceptan USD en pruebas).",
+            "Fuerza URL sandbox: MERCADOPAGO_CHECKOUT_MODE=sandbox",
+          ],
         },
         paypal: {
           configured: paypalConfigured,

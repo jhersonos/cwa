@@ -16,6 +16,28 @@ export function getUnlockPriceUsd() {
 }
 
 /**
+ * Moneda de la preferencia Mercado Pago (USD, ARS, MXN, …).
+ * Si tu cuenta/sandbox no acepta USD, prueba ARS + MERCADOPAGO_UNIT_PRICE.
+ */
+export function getMercadoPagoCurrencyId() {
+  const c = (process.env.MERCADOPAGO_CURRENCY_ID || "USD").trim().toUpperCase();
+  return c || "USD";
+}
+
+/**
+ * Monto unitario en la moneda de MP. Por defecto = UNLOCK_PRICE_USD.
+ * Si MERCADOPAGO_CURRENCY_ID no es USD, define MERCADOPAGO_UNIT_PRICE (ej. 5000 para ARS).
+ */
+export function getMercadoPagoUnitPrice() {
+  const raw = process.env.MERCADOPAGO_UNIT_PRICE;
+  if (raw != null && String(raw).trim() !== "") {
+    const n = parseFloat(String(raw).trim());
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return getUnlockPriceUsd();
+}
+
+/**
  * Inserta token único si no existe payment_reference (idempotente).
  * @returns {{ created: boolean, token?: string, expiresAt?: Date, portalId?: string }}
  */
