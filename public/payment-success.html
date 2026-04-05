@@ -215,8 +215,8 @@
                 Ir a HubSpot →
             </a>
             
-            <p style="margin-top: 30px; color: #666; font-size: 14px;">
-                Tu token es válido por 30 días desde hoy
+            <p style="margin-top: 30px; color: #666; font-size: 14px;" id="validity-note">
+                Tu token es válido por 1 mes (30 días) desde la activación
             </p>
         </div>
     </div>
@@ -224,17 +224,18 @@
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const paymentId = urlParams.get('payment_id');
-        const preferenceId = urlParams.get('preference_id');
+        const paymentRef = urlParams.get('payment_ref');
         const status = urlParams.get('status');
         
         async function loadTokenInfo() {
             try {
-                if (status === 'approved' && paymentId) {
-                    // Esperar unos segundos para que el webhook procese
-                    await new Promise(resolve => setTimeout(resolve, 3000));
+                if (status === 'approved' && (paymentId || paymentRef)) {
+                    await new Promise(resolve => setTimeout(resolve, paymentRef ? 800 : 3000));
                     
-                    // Obtener info del token
-                    const response = await fetch(`/api/payment/token-info?payment_id=${paymentId}`);
+                    const q = paymentRef
+                        ? `payment_ref=${encodeURIComponent(paymentRef)}`
+                        : `payment_id=${encodeURIComponent(paymentId)}`;
+                    const response = await fetch(`/api/payment/token-info?${q}`);
                     
                     if (!response.ok) {
                         throw new Error('Error al obtener token');
@@ -242,9 +243,8 @@
                     
                     const data = await response.json();
                     
-                    // Mostrar token
                     document.getElementById('token').textContent = data.token;
-                    document.getElementById('user-email').textContent = data.email;
+                    document.getElementById('user-email').textContent = data.email || '(incluido en tu cuenta HubSpot tras recargar la app)';
                     
                     document.getElementById('loading-state').style.display = 'none';
                     document.getElementById('success-state').style.display = 'block';

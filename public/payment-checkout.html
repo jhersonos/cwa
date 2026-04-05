@@ -133,6 +133,62 @@
             background: #ccc;
             cursor: not-allowed;
         }
+
+        .btn-paypal {
+            background: #0070ba;
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.3s;
+        }
+        .btn-paypal:hover:not(:disabled) {
+            background: #005ea2;
+        }
+        .btn-paypal:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .pay-hint {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 8px;
+            text-align: center;
+        }
+
+        .payment-methods {
+            margin-top: 8px;
+        }
+        .payment-methods h3 {
+            font-size: 15px;
+            color: #334155;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        .paypal-unavailable {
+            display: none;
+            background: #fffbeb;
+            border: 1px solid #fcd34d;
+            color: #92400e;
+            padding: 14px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-top: 12px;
+        }
+        .paypal-unavailable.show {
+            display: block;
+        }
+        .paypal-unavailable code {
+            font-size: 12px;
+            background: #fef3c7;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
         
         .error {
             background: #fee2e2;
@@ -195,8 +251,8 @@
             Obtén acceso a exportaciones completas de registros afectados y resumen detallado de auditoría.
         </p>
         
-        <div class="price">$9.99 USD</div>
-        <p class="price-detail">Válido por 30 días • Un solo pago</p>
+        <div class="price" id="price-display">— USD</div>
+        <p class="price-detail" id="price-detail">Cargando…</p>
         
         <div class="features">
             <h3>Incluye:</h3>
@@ -206,7 +262,7 @@
                 <li>Exportación de empresas sin teléfono o información crítica</li>
                 <li>Resumen completo de auditoría con scores y recomendaciones</li>
                 <li>Ideal para trabajo interno o con agencias/consultores</li>
-                <li>Token válido por 30 días desde la activación</li>
+                <li>Acceso válido por 1 mes (30 días) desde la activación</li>
             </ul>
         </div>
         
@@ -243,9 +299,25 @@
                 </small>
             </div>
             
-            <button type="submit" class="cta-button" id="submit-btn">
-                Continuar a MercadoPago →
-            </button>
+            <div class="payment-methods" id="payment-methods">
+                <h3 id="payment-methods-title">Método de pago</h3>
+                <button type="submit" class="cta-button" id="submit-btn">
+                    Pagar con Mercado Pago →
+                </button>
+                <p class="pay-hint" id="mp-hint"></p>
+
+                <button type="button" class="btn-paypal" id="paypal-btn" style="display: none; margin-top: 12px;">
+                    Pagar con PayPal
+                </button>
+                <p class="pay-hint" id="paypal-hint"></p>
+            </div>
+
+            <div class="paypal-unavailable" id="paypal-unavailable" aria-live="polite">
+                <strong>PayPal no está activo en este servidor.</strong>
+                El botón de PayPal aparecerá aquí cuando el administrador configure las variables
+                <code>PAYPAL_CLIENT_ID</code> y <code>PAYPAL_CLIENT_SECRET</code> en el entorno del backend
+                (y <code>PAYPAL_MODE=live</code> en producción). Mientras tanto puedes pagar con Mercado Pago.
+            </div>
         </form>
         
         <div id="loading" class="loading">
@@ -254,22 +326,111 @@
         </div>
         
         <div class="secure-badge">
-            Pago seguro procesado por MercadoPago
+            Pagos seguros: Mercado Pago y/o PayPal
         </div>
     </div>
 
     <script>
         const form = document.getElementById('checkout-form');
         const submitBtn = document.getElementById('submit-btn');
+        const paypalBtn = document.getElementById('paypal-btn');
         const loading = document.getElementById('loading');
         const errorDiv = document.getElementById('error');
         
-        // Capturar Portal ID de URL si viene de HubSpot
         const urlParams = new URLSearchParams(window.location.search);
         const portalIdFromUrl = urlParams.get('portalId');
+        const emailFromUrl = urlParams.get('email');
         if (portalIdFromUrl) {
             document.getElementById('portal-id').value = portalIdFromUrl;
         }
+        if (emailFromUrl) {
+            document.getElementById('email').value = decodeURIComponent(emailFromUrl);
+        }
+
+        let payConfig = { priceUsd: 5, durationDays: 30, mercadoPagoEnabled: true, paypalEnabled: false };
+
+        (async function loadConfig() {
+            try {
+                const r = await fetch('/api/payment/config');
+                if (r.ok) {
+                    payConfig = await r.json();
+                }
+            } catch (_) {}
+            const p = Number(payConfig.priceUsd || 5).toFixed(2);
+            const d = payConfig.durationDays || 30;
+            document.getElementById('price-display').textContent = '$' + p + ' USD';
+            document.getElementById('price-detail').textContent =
+                'Válido por 1 mes (' + d + ' días) · Un solo pago';
+            const paypalUnavailable = document.getElementById('paypal-unavailable');
+            const methodsTitle = document.getElementById('payment-methods-title');
+
+            if (!payConfig.mercadoPagoEnabled) {
+                submitBtn.disabled = true;
+                document.getElementById('mp-hint').textContent =
+                    'Mercado Pago no disponible en este servidor.';
+            }
+            if (payConfig.paypalEnabled) {
+                paypalBtn.style.display = 'block';
+                paypalBtn.disabled = false;
+                document.getElementById('paypal-hint').textContent = '';
+                paypalUnavailable.classList.remove('show');
+                methodsTitle.textContent =
+                    payConfig.mercadoPagoEnabled
+                        ? 'Elige método de pago'
+                        : 'Pago con PayPal';
+            } else {
+                paypalBtn.style.display = 'none';
+                paypalUnavailable.classList.add('show');
+                document.getElementById('paypal-hint').textContent = '';
+                if (!payConfig.mercadoPagoEnabled) {
+                    paypalUnavailable.innerHTML =
+                        '<strong>Ningún método de pago está configurado.</strong> Contacta soporte.';
+                }
+            }
+        })();
+
+        function getFormValues() {
+            return {
+                portalId: document.getElementById('portal-id').value.trim(),
+                email: document.getElementById('email').value.trim(),
+            };
+        }
+
+        paypalBtn.addEventListener('click', async () => {
+            const { portalId, email } = getFormValues();
+            if (!portalId || !email) {
+                showError('Completa Portal ID y email.');
+                return;
+            }
+            if (!payConfig.paypalEnabled) {
+                showError('PayPal no está habilitado.');
+                return;
+            }
+            form.style.display = 'none';
+            loading.classList.add('show');
+            loading.querySelector('p').textContent = 'Conectando con PayPal...';
+            errorDiv.classList.remove('show');
+            try {
+                const response = await fetch('/api/payment/paypal/create-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ portalId, email }),
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.message || data.error || 'Error PayPal');
+                }
+                if (!data.approvalUrl) {
+                    throw new Error('Respuesta inválida del servidor (sin URL de PayPal)');
+                }
+                window.location.href = data.approvalUrl;
+            } catch (error) {
+                console.error(error);
+                showError(error.message || 'Error al iniciar PayPal');
+                form.style.display = 'block';
+                loading.classList.remove('show');
+            }
+        });
         
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
