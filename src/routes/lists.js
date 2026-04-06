@@ -8,7 +8,8 @@ import { getListPreview } from "../services/listsPreview.service.js";
  * @param {number} lowerDaysFromToday - más negativo = más al pasado (p. ej. -3650)
  * @param {number} upperDaysFromToday - menos negativo (p. ej. -180); debe ser > lowerDaysFromToday
  *
- * HubSpot Lists API: con límite inferior en TODAY, el superior debe usar NOW (evita error 400).
+ * HubSpot Lists API: NOW no admite offset en timepoints indexados ("Indexed timepoint of NOW should not have an offset").
+ * Ambos extremos usan TODAY + offset en días (UTC).
  */
 function rollingDateBetweenProperty(propertyName, lowerDaysFromToday, upperDaysFromToday) {
   return {
@@ -30,7 +31,7 @@ function rollingDateBetweenProperty(propertyName, lowerDaysFromToday, upperDaysF
       upperBoundTimePoint: {
         timezoneSource: "CUSTOM",
         zoneId: "UTC",
-        indexReference: { referenceType: "NOW" },
+        indexReference: { referenceType: "TODAY" },
         offset: { days: upperDaysFromToday },
         timeType: "INDEXED",
       },
