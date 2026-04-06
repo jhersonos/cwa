@@ -2,22 +2,19 @@ import { refreshPortalToken } from "../services/hubspot/refreshToken.service.js"
 import { getListPreview } from "../services/listsPreview.service.js";
 
 /**
- * Filtro de propiedad de fecha: valor entre dos puntos rodantes desde HOY (TIME_RANGED).
- * Sustituye RANGE_COMPARISON (ya no válido en Lists API v3 público).
- * @param {string} propertyName - internal name (p. ej. notes_last_updated, createdate)
- * @param {number} lowerDaysFromToday - más negativo = más al pasado (p. ej. -3650)
- * @param {number} upperDaysFromToday - menos negativo (p. ej. -180); debe ser > lowerDaysFromToday
- *
- * HubSpot Lists API: NOW no admite offset en timepoints indexados ("Indexed timepoint of NOW should not have an offset").
- * Ambos extremos usan TODAY + offset en días (UTC).
+ * TIME_RANGED: "no actualizado en los últimos X días" = IS_NOT_BETWEEN [TODAY−X, NOW].
+ * Documentación HubSpot: con límite inferior TODAY, el superior debe ser NOW sin offset.
+ * @param {string} propertyName - notes_last_updated, createdate, etc.
+ * @param {number} days - ventana rodante (p. ej. 180 → sin actividad en últimos 180 días)
+ * @param {boolean} [includeObjectsWithNoValueSet=true] - incluir registros sin fecha
  */
-function rollingDateBetweenProperty(propertyName, lowerDaysFromToday, upperDaysFromToday) {
+function rollingDateNotInLastDays(propertyName, days, includeObjectsWithNoValueSet = true) {
   return {
     filterType: "PROPERTY",
     property: propertyName,
     operation: {
-      operator: "IS_BETWEEN",
-      includeObjectsWithNoValueSet: false,
+      operator: "IS_NOT_BETWEEN",
+      includeObjectsWithNoValueSet,
       lowerBoundEndpointBehavior: "INCLUSIVE",
       upperBoundEndpointBehavior: "INCLUSIVE",
       propertyParser: "VALUE",
@@ -25,20 +22,26 @@ function rollingDateBetweenProperty(propertyName, lowerDaysFromToday, upperDaysF
         timezoneSource: "CUSTOM",
         zoneId: "UTC",
         indexReference: { referenceType: "TODAY" },
-        offset: { days: lowerDaysFromToday },
+        offset: { days: -days },
         timeType: "INDEXED",
       },
       upperBoundTimePoint: {
         timezoneSource: "CUSTOM",
         zoneId: "UTC",
-        indexReference: { referenceType: "TODAY" },
-        offset: { days: upperDaysFromToday },
+        indexReference: { referenceType: "NOW" },
         timeType: "INDEXED",
       },
       type: "TIME_RANGED",
       operationType: "TIME_RANGED",
     },
   };
+}
+
+/** URL para abrir el segmento en CRM → Listas (ilsListId = listId de la API). */
+function hubspotSegmentAppUrl(portalId, ilsListId) {
+  const id = encodeURIComponent(String(ilsListId));
+  const hub = encodeURIComponent(String(portalId));
+  return `https://app.hubspot.com/contacts/${hub}/lists/${id}`;
 }
 
 /**
@@ -203,8 +206,7 @@ const listsRoutes = async (fastify, options) => {
                 filterBranchType: 'AND',
                 filterBranchOperator: 'AND',
                 filters: [
-                  // Última actividad entre hace ~10 años y hace 180 días (= inactivos 180+ días)
-                  rollingDateBetweenProperty("notes_last_updated", -3650, -180),
+                  rollingDateNotInLastDays("notes_last_updated", 180, false),
                 ],
               },
             ],
@@ -221,7 +223,7 @@ const listsRoutes = async (fastify, options) => {
                 filterBranchType: 'AND',
                 filterBranchOperator: 'AND',
                 filters: [
-                  rollingDateBetweenProperty("createdate", -3650, -90),
+                  rollingDateNotInLastDays("createdate", 90, false),
                   {
                     filterType: "PROPERTY",
                     property: "notes_last_updated",
@@ -343,7 +345,7 @@ const listsRoutes = async (fastify, options) => {
                 filterBranchType: 'AND',
                 filterBranchOperator: 'AND',
                 filters: [
-                  rollingDateBetweenProperty('notes_last_updated', -3650, -180),
+                  rollingDateNotInLastDays('notes_last_updated', 180, false),
                 ],
               },
             ],
@@ -368,7 +370,7 @@ const listsRoutes = async (fastify, options) => {
                       operator: "IS_UNKNOWN",
                     },
                   },
-                  rollingDateBetweenProperty("notes_last_updated", -3650, -30),
+                  rollingDateNotInLastDays("notes_last_updated", 30, false),
                 ],
               },
             ],
@@ -472,19 +474,32 @@ const listsRoutes = async (fastify, options) => {
           }
           
           const listData = await response.json();
-          
-          fastify.log.info({ 
-            listId, 
-            hubspotListId: listData.listId,
-            listName: definition.name 
-          }, 'List created successfully');
-          
+          const listPayload = listData.list ?? listData;
+          const ilsListId =
+            listPayload.listId != null
+              ? listPayload.listId
+              : listPayload.id != null
+                ? listPayload.id
+                : null;
+
+          fastify.log.info(
+            {
+              listId,
+              hubspotListId: ilsListId,
+              listName: definition.name,
+            },
+            "List created successfully"
+          );
+
           results.push({
             listId,
             success: true,
-            hubspotListId: listData.listId,
+            hubspotListId: ilsListId,
             name: definition.name,
-            url: `https://app.hubspot.com/contacts/${portalId}/lists/${listData.listId}`
+            url:
+              ilsListId != null
+                ? hubspotSegmentAppUrl(portalId, ilsListId)
+                : null,
           });
           
           created++;
