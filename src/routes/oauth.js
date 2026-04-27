@@ -9,17 +9,18 @@ export default async function oauthRoutes(fastify) {
   } = process.env;
 
   fastify.get("/oauth/start", async (req, reply) => {
+    // Solo scopes con uso real en la API. crm.objects.owners.read se omite: el owner se lee vía
+    // propiedades hubspot_owner_id con crm.objects.*.read. crm.schemas.deals.read y
+    // crm.objects.line_items.read no tenían endpoints. settings.users.read: requerido para
+    // GET /settings/v3/users (users.analysis.js, escaneo de usuarios inactivos).
     const scopes = [
       "oauth",
       "crm.objects.contacts.read",
       "crm.objects.companies.read",
       "crm.objects.deals.read",
-      "crm.objects.owners.read",
-      "crm.schemas.deals.read",
       "crm.lists.read",
       "crm.lists.write",
       "tickets",
-      "crm.objects.line_items.read",
       "settings.users.read",
       "automation",
       "forms",
