@@ -161,60 +161,15 @@ async function getLifecycleStages(fastify, portalId, token) {
  * 1. USERS EFFICIENCY (30% weight)
  */
 async function analyzeUsersEfficiency(fastify, portalId, token) {
-  try {
-    const usersRes = await hubspotRequest(
-      fastify,
-      portalId,
-      token, "/settings/v3/users");
-    const users = usersRes?.results || [];
-
-    if (users.length === 0) {
-      return {
-        totalUsers: 0,
-        inactiveUsers: 0,
-        userEfficiencyScore: 50,
-        estimatedMonthlyWaste: 0,
-        limitedVisibility: true
-      };
-    }
-
-    // Detect inactive users
-    const inactiveUsers = users.filter(
-      (u) => u.isSuspended === true || !u.email
-    ).length;
-
-    // Calculate efficiency score
-    let score = 100;
-    const inactiveRatio = inactiveUsers / users.length;
-
-    if (inactiveRatio > 0.3) score -= 30;
-    else if (inactiveRatio > 0.2) score -= 20;
-    else if (inactiveRatio > 0.1) score -= 10;
-    else if (inactiveRatio > 0.05) score -= 5;
-
-    // Guardrail: 40-100
-    score = Math.max(40, Math.min(100, Math.round(score)));
-
-    // Estimate waste (conservative, no hardcoded pricing)
-    const estimatedMonthlyWaste = inactiveUsers > 0 ? inactiveUsers * 50 : 0;
-
-    return {
-      totalUsers: users.length,
-      inactiveUsers,
-      userEfficiencyScore: score,
-      estimatedMonthlyWaste,
-      limitedVisibility: false
-    };
-  } catch {
-    // Only return neutral values if we truly cannot read users
-    return {
-      totalUsers: 0,
-      inactiveUsers: 0,
-      userEfficiencyScore: 50,
-      estimatedMonthlyWaste: 0,
-      limitedVisibility: true
-    };
-  }
+  // Temporalmente desactivado para no depender del scope settings.users.read.
+  return {
+    totalUsers: 0,
+    inactiveUsers: 0,
+    userEfficiencyScore: 100,
+    estimatedMonthlyWaste: 0,
+    limitedVisibility: true,
+    disabledByScopePolicy: true,
+  };
 }
 
 

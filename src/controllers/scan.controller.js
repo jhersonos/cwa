@@ -1,7 +1,6 @@
 // src/controllers/scan.controller.js
 
 import { analyzeContacts } from "../services/analysis/contacts.analysis.js";
-import { analyzeUsers } from "../services/analysis/users.analysis.js";
 import { analyzeDeals } from "../services/analysis/deals.analysis.js";
 import { analyzeCompanies } from "../services/analysis/companies.analysis.js";
 import { analyzeToolsUsage } from "../services/analysis/tools.analysis.js";
@@ -69,7 +68,6 @@ export async function runScanV3(req, reply) {
     ------------------------ */
     const results = await Promise.allSettled([
       analyzeContacts(req.server, portalId, token),
-      analyzeUsers(req.server, portalId, token),
       analyzeDeals(req.server, portalId, token),
       analyzeCompanies(req.server, portalId, token),
       analyzeToolsUsage(req.server, portalId, token)
@@ -89,10 +87,17 @@ export async function runScanV3(req, reply) {
             limitedVisibility: true,
             countsSource: 'sample',
           };
-    const users = results[1].status === 'fulfilled' ? results[1].value : { total: 0, score: 100, active: 0, limitedVisibility: true };
+    // Users analysis disabled temporarily to remove settings.users.read dependency.
+    const users = {
+      total: 0,
+      inactive: 0,
+      score: 100,
+      limitedVisibility: true,
+      disabledByScopePolicy: true,
+    };
     const deals =
-      results[2].status === 'fulfilled'
-        ? results[2].value
+      results[1].status === 'fulfilled'
+        ? results[1].value
         : {
             total: 0,
             withoutContact: { count: 0, percentage: 0, score: 100 },
@@ -105,8 +110,8 @@ export async function runScanV3(req, reply) {
             countsSource: 'sample',
           };
     const companies =
-      results[3].status === 'fulfilled'
-        ? results[3].value
+      results[2].status === 'fulfilled'
+        ? results[2].value
         : {
             total: 0,
             withoutDomain: { count: 0, percentage: 0, score: 100 },
@@ -117,7 +122,7 @@ export async function runScanV3(req, reply) {
             limitedVisibility: true,
             countsSource: 'sample',
           };
-    const tools = results[4].status === 'fulfilled' ? results[4].value : { unused: [], inUse: [], totalTools: 0, usagePercentage: 0, limitedVisibility: true };
+    const tools = results[3].status === 'fulfilled' ? results[3].value : { unused: [], inUse: [], totalTools: 0, usagePercentage: 0, limitedVisibility: true };
 
     
     /* ------------------------

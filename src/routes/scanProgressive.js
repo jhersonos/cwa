@@ -7,7 +7,6 @@
 
 import { getValidAccessToken } from "../services/hubspot/token.service.js";
 import { analyzeContacts } from "../services/analysis/contacts.analysis.js";
-import { analyzeUsers } from "../services/analysis/users.analysis.js";
 import { analyzeDeals } from "../services/analysis/deals.analysis.js";
 import { analyzeCompanies } from "../services/analysis/companies.analysis.js";
 import { analyzeToolsUsage } from "../services/analysis/tools.analysis.js";
@@ -71,15 +70,17 @@ export default async function scanProgressiveRoutes(fastify) {
     }
 
     try {
-      req.server.log.info({ portalId }, "Starting users analysis");
-      
-      const authStart = Date.now();
-      const token = await getValidAccessToken(req.server, portalId);
-      req.server.log.info({ durationMs: Date.now() - authStart }, "Auth completed");
-      
-      const analysisStart = Date.now();
-      const users = await analyzeUsers(req.server, portalId, token);
-      req.server.log.info({ durationMs: Date.now() - analysisStart }, "Users analysis completed");
+      req.server.log.info(
+        { portalId },
+        "Users analysis disabled by scope policy"
+      );
+      const users = {
+        total: 0,
+        inactive: 0,
+        score: 100,
+        limitedVisibility: true,
+        disabledByScopePolicy: true,
+      };
       
       const totalDuration = Date.now() - start;
       req.server.log.info({ totalDurationMs: totalDuration }, "Users endpoint finished");

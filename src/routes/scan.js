@@ -124,23 +124,11 @@ export default async function scanRoutes(fastify) {
     const totalContacts = await getAllContacts(token);
 
     /* -------------------------
-       USERS
+       USERS (TEMPORALMENTE DESACTIVADO)
     ------------------------- */
-    let usersRes;
-    try {
-      usersRes = await hubspotRequest(token, "/settings/v3/users");
-    } catch {
-      usersRes = null;
-    }
-
-    // Fallback seguro para Free accounts
-    const totalUsers = usersRes?.results?.length || 1;
-
-    const inactiveUsers = usersRes?.results
-      ? usersRes.results.filter(
-          (u) => u.isSuspended || !u.email
-        ).length
-      : 0;
+    // Se neutraliza para no depender del scope settings.users.read
+    const totalUsers = 1;
+    const inactiveUsers = 0;
 
     /* -------------------------
        METRICS
