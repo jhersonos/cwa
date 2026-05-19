@@ -13,6 +13,7 @@ import scanProgressiveRoutes from "./routes/scanProgressive.js";
 import debugRoutes from "./routes/debug.js";
 import unlockRoutes from "./routes/unlock.js";
 import contactsDetailsRoutes from "./routes/contactsDetails.js";
+import companiesDetailsRoutes from "./routes/companiesDetails.js";
 import paymentRoutes from "./routes/payment.js";
 import listsRoutes from "./routes/lists.js";
 import listsDebugRoutes from "./routes/listsDebug.js";
@@ -60,6 +61,7 @@ export default async function buildApp() {
   await app.register(debugRoutes);
   await app.register(unlockRoutes);
   await app.register(contactsDetailsRoutes);
+  await app.register(companiesDetailsRoutes);
   await app.register(paymentRoutes);
   await app.register(listsRoutes);
   await app.register(listsDebugRoutes);

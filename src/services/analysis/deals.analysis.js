@@ -1,6 +1,7 @@
 // src/services/analysis/deals.analysis.js
 import axios from "axios";
 import {
+  crmSearchFetch,
   crmSearchTotal,
   filterAllRecords,
   msAgo,
@@ -74,7 +75,26 @@ async function countDealsWithoutContactAssociationSample(token, limit = 25) {
   return { without, sample, items };
 }
 
-export async function analyzeDeals(fastify, portalId, token) {
+function inactiveDealFilterGroups() {
+  return [
+    {
+      filters: [
+        {
+          propertyName: "hs_lastmodifieddate",
+          operator: "LT",
+          value: msAgo(90),
+        },
+      ],
+    },
+  ];
+}
+
+function detailItemsCap(unlocked) {
+  return unlocked ? 500 : 100;
+}
+
+export async function analyzeDeals(fastify, portalId, token, options = {}) {
+  const unlocked = Boolean(options.unlocked);
   const inactiveCutoffMs = msAgo(90);
 
   const [
@@ -135,7 +155,7 @@ export async function analyzeDeals(fastify, portalId, token) {
       { portalId },
       "Deals: CRM Search unavailable, using legacy sample analysis"
     );
-    return analyzeDealsLegacy(fastify, portalId, token);
+    return analyzeDealsLegacy(fastify, portalId, token, { unlocked });
   }
 
   let withoutContactCount = noContactSearch;
@@ -230,6 +250,24 @@ export async function analyzeDeals(fastify, portalId, token) {
     stagesSummary = [];
   }
 
+  const cap = detailItemsCap(unlocked);
+  const inactiveRaw = await crmSearchFetch(
+    token,
+    "deals",
+    inactiveDealFilterGroups(),
+    {
+      properties: [
+        "dealname",
+        "dealstage",
+        "amount",
+        "hubspot_owner_id",
+        "hs_lastmodifieddate",
+      ],
+      maxResults: cap,
+    }
+  );
+  const inactiveItems = inactiveRaw.map(normalizeDeal);
+
   return {
     total: totalDeals,
     withoutContact: {
@@ -254,7 +292,7 @@ export async function analyzeDeals(fastify, portalId, token) {
       count: inactiveCount,
       percentage: inactivePercentage,
       score: calculateScore(inactivePercentage),
-      items: [],
+      items: inactiveItems,
     },
     stagesSummary,
     averageActivities: 0,
@@ -264,7 +302,9 @@ export async function analyzeDeals(fastify, portalId, token) {
 }
 
 /** Análisis previo (muestra 50 + asociaciones por deal) — fallback completo. */
-async function analyzeDealsLegacy(fastify, portalId, token) {
+async function analyzeDealsLegacy(fastify, portalId, token, options = {}) {
+  const unlocked = Boolean(options.unlocked);
+  const listLimit = unlocked ? 200 : 50;
   let deals = [];
   let limitedVisibility = false;
 
@@ -272,7 +312,7 @@ async function analyzeDealsLegacy(fastify, portalId, token) {
     const res = await axios.get(`${HUBSPOT_API}/crm/v3/objects/deals`, {
       headers: { Authorization: `Bearer ${token}` },
       params: {
-        limit: 50,
+        limit: listLimit,
         properties: [
           "dealname",
           "dealstage",

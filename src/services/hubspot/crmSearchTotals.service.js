@@ -54,3 +54,47 @@ export function filterAllRecords() {
 export function msAgo(days) {
   return String(Date.now() - days * 24 * 60 * 60 * 1000);
 }
+
+/**
+ * Lista registros vía CRM Search (paginado) para vistas de detalle / export.
+ * @returns {Promise<Array<Record<string, unknown>>>}
+ */
+export async function crmSearchFetch(
+  token,
+  objectType,
+  filterGroups,
+  { properties = [], maxResults = 100 } = {}
+) {
+  const out = [];
+  let after;
+
+  try {
+    while (out.length < maxResults) {
+      const limit = Math.min(100, maxResults - out.length);
+      const body = { filterGroups, limit };
+      if (properties.length) body.properties = properties;
+      if (after) body.after = after;
+
+      const res = await axios.post(
+        `${HUBSPOT_API}/crm/v3/objects/${objectType}/search`,
+        body,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 20000,
+        }
+      );
+
+      const batch = res.data?.results || [];
+      out.push(...batch);
+      after = res.data?.paging?.next?.after;
+      if (!after || batch.length === 0) break;
+    }
+  } catch {
+    return [];
+  }
+
+  return out;
+}

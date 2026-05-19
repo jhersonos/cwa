@@ -66,11 +66,13 @@ export async function runScanV3(req, reply) {
        FASE 4 — BASE SCANS (AISLADOS)
        🚀 Análisis rápido - core objects + tools (optimizado)
     ------------------------ */
+    const scanOpts = { unlocked: Boolean(unlockStatus.unlocked) };
+
     const results = await Promise.allSettled([
-      analyzeContacts(req.server, portalId, token),
-      analyzeDeals(req.server, portalId, token),
-      analyzeCompanies(req.server, portalId, token),
-      analyzeToolsUsage(req.server, portalId, token)
+      analyzeContacts(req.server, portalId, token, scanOpts),
+      analyzeDeals(req.server, portalId, token, scanOpts),
+      analyzeCompanies(req.server, portalId, token, scanOpts),
+      analyzeToolsUsage(req.server, portalId, token),
     ]);
 
     // 🛡️ Extraer resultados con fallbacks seguros (misma forma que analyze* para insights/export)

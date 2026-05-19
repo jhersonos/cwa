@@ -1,10 +1,49 @@
 // src/services/analysis/companies.analysis.js
 import axios from "axios";
 import {
+  crmSearchFetch,
   crmSearchTotal,
   filterAllRecords,
   msAgo,
 } from "../hubspot/crmSearchTotals.service.js";
+
+const COMPANY_PROPERTIES = [
+  "name",
+  "domain",
+  "hubspot_owner_id",
+  "hs_lastmodifieddate",
+  "phone",
+  "industry",
+];
+
+function normalizeCompany(company) {
+  const p = company.properties || {};
+  return {
+    id: company.id,
+    name: p.name || `Empresa ${company.id}`,
+    domain: p.domain || null,
+    lastModified: p.hs_lastmodifieddate || null,
+    phone: p.phone || null,
+  };
+}
+
+function inactiveCompanyFilterGroups() {
+  return [
+    {
+      filters: [
+        {
+          propertyName: "hs_lastmodifieddate",
+          operator: "LT",
+          value: msAgo(90),
+        },
+      ],
+    },
+  ];
+}
+
+function detailItemsCap(unlocked) {
+  return unlocked ? 500 : 100;
+}
 
 const HUBSPOT_API = "https://api.hubapi.com";
 const THREE_MONTHS = 90 * 24 * 60 * 60 * 1000;
@@ -16,7 +55,8 @@ function calculateScore(percentage) {
   return 30;
 }
 
-export async function analyzeCompanies(fastify, portalId, token) {
+export async function analyzeCompanies(fastify, portalId, token, options = {}) {
+  const unlocked = Boolean(options.unlocked);
   const inactiveCutoffMs = msAgo(90);
 
   const [totalAll, noDomain, noOwner, noPhone, inactive] = await Promise.all([
@@ -59,7 +99,7 @@ export async function analyzeCompanies(fastify, portalId, token) {
       { portalId },
       "Companies: CRM Search totals unavailable, using sample fallback"
     );
-    return analyzeCompaniesSample(fastify, portalId, token);
+    return analyzeCompaniesSample(fastify, portalId, token, { unlocked });
   }
 
   const totalCompanies = totalAll;
@@ -115,6 +155,15 @@ export async function analyzeCompanies(fastify, portalId, token) {
     ((inactiveCount / totalCompanies) * 100).toFixed(1)
   );
 
+  const cap = detailItemsCap(unlocked);
+  const inactiveRaw = await crmSearchFetch(
+    token,
+    "companies",
+    inactiveCompanyFilterGroups(),
+    { properties: COMPANY_PROPERTIES, maxResults: cap }
+  );
+  const inactiveItems = inactiveRaw.map(normalizeCompany);
+
   return {
     total: totalCompanies,
     withoutDomain: {
@@ -139,7 +188,7 @@ export async function analyzeCompanies(fastify, portalId, token) {
       count: inactiveCount,
       percentage: inactivePercentage,
       score: calculateScore(inactivePercentage),
-      items: [],
+      items: inactiveItems,
     },
     averageActivities: 0,
     limitedVisibility: false,
@@ -147,7 +196,9 @@ export async function analyzeCompanies(fastify, portalId, token) {
   };
 }
 
-async function analyzeCompaniesSample(fastify, portalId, token) {
+async function analyzeCompaniesSample(fastify, portalId, token, options = {}) {
+  const unlocked = Boolean(options.unlocked);
+  const listLimit = unlocked ? 200 : 50;
   let companies = [];
   let limitedVisibility = false;
 
@@ -157,15 +208,8 @@ async function analyzeCompaniesSample(fastify, portalId, token) {
         Authorization: `Bearer ${token}`,
       },
       params: {
-        limit: 50,
-        properties: [
-          "name",
-          "domain",
-          "hubspot_owner_id",
-          "hs_lastmodifieddate",
-          "phone",
-          "industry",
-        ].join(","),
+        limit: listLimit,
+        properties: COMPANY_PROPERTIES.join(","),
       },
       timeout: 2500,
     });
@@ -279,7 +323,7 @@ async function analyzeCompaniesSample(fastify, portalId, token) {
       count: inactiveCount,
       percentage: inactivePercentage,
       score: calculateScore(inactivePercentage),
-      items: [],
+      items: inactiveCompanies.map(normalizeCompany),
     },
     averageActivities: 0,
     limitedVisibility,

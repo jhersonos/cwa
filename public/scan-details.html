@@ -13,13 +13,14 @@
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            padding: 20px;
+            padding: 0;
             background: #f5f5f5;
             color: #333;
         }
         
         .container {
             max-width: 1200px;
+            width: 100%;
             margin: 0 auto;
             background: white;
             padding: 30px;
@@ -174,6 +175,7 @@
     <script>
         /** Máximo de filas en tablas (vista previa en modal) */
         const PREVIEW_LIMIT = 10;
+        const API_BASE = window.location.origin || 'https://cwa.estado7.com';
 
         // Obtener parámetros de URL
         const urlParams = new URLSearchParams(window.location.search);
@@ -189,7 +191,7 @@
                  * devuelve 429 tras un análisis reciente. El detalle solo necesita el último resultado
                  * guardado (mismo dato que la app ya mostró).
                  */
-                const response = await fetch(`https://cwa.estado7.com/api/scan-v3/last?portalId=${portalId}`);
+                const response = await fetch(`${API_BASE}/api/scan-v3/last?portalId=${encodeURIComponent(portalId)}`);
                 
                 if (response.status === 404) {
                     throw new Error('No hay análisis guardado. Ejecuta primero el análisis en la app HubSpot.');
@@ -279,7 +281,7 @@
                 case 'companies-inactive':
                 case 'companies-inactive-critical':
                 case 'companies-inactive-warning':
-                    html = renderInactiveCompanies(data);
+                    html = await renderInactiveCompanies(data);
                     break;
                 case 'users-inactive-critical':
                 case 'users-inactive-warning':
@@ -287,7 +289,8 @@
                     break;
                 case 'tools-critical-unused':
                 case 'tools-warning-unused':
-                    html = renderToolsUnused(data);
+                case 'tools-unused-multiple':
+                    html = renderToolsUnused(data, type);
                     break;
                 default:
                     html = `
@@ -313,7 +316,7 @@
             let contactsTable = '<p class="no-data">Cargando contactos...</p>';
             
             try {
-                const contactsRes = await fetch(`https://cwa.estado7.com/api/contacts/incomplete?portalId=${portalId}`);
+                const contactsRes = await fetch(`${API_BASE}/api/contacts/incomplete?portalId=${encodeURIComponent(portalId)}`);
                 if (contactsRes.ok) {
                     const contactsData = await contactsRes.json();
                     const contacts = (contactsData.contacts || []).slice(0, PREVIEW_LIMIT);
@@ -883,20 +886,40 @@
             `;
         }
 
-        function renderInactiveCompanies(data) {
-            const companies = data.companies.inactive;
+        async function renderInactiveCompanies(data) {
+            const companies = data.companies?.inactive || { count: 0, percentage: 0, items: [] };
+            let items = companies.items || [];
+
+            if (items.length === 0 && portalId) {
+                try {
+                    const res = await fetch(
+                        `${API_BASE}/api/companies/inactive?portalId=${encodeURIComponent(portalId)}`
+                    );
+                    if (res.ok) {
+                        const payload = await res.json();
+                        items = payload.companies || [];
+                    }
+                } catch (e) {
+                    console.warn('No se pudo cargar listado de empresas inactivas', e);
+                }
+            }
+
+            const rows = items.slice(0, PREVIEW_LIMIT);
+            const totalShown = companies.count ?? items.length;
+            const moreCount = Math.max(0, totalShown - rows.length);
             
             return `
                 <h1>Empresas Inactivas (más de 3 meses sin actividad)</h1>
                 <span class="severity-badge severity-warning">WARNING</span>
                 
+                
                 <div class="stats">
                     <div class="stat-card">
-                        <div class="stat-value">${companies.count}</div>
+                        <div class="stat-value">${totalShown}</div>
                         <div class="stat-label">Empresas inactivas</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">${companies.percentage}%</div>
+                        <div class="stat-value">${companies.percentage ?? 0}%</div>
                         <div class="stat-label">Porcentaje afectado</div>
                     </div>
                 </div>
@@ -905,6 +928,36 @@
                     <p><strong>Impacto:</strong> Oportunidades de upsell/cross-sell desaprovechadas. Riesgo de churn en clientes existentes.</p>
                     <p><strong>Recomendación:</strong> Implementa workflows de check-in trimestral y revisa health score de cuentas.</p>
                 </div>
+                
+                ${rows.length > 0 ? `
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Empresa</th>
+                                    <th>Dominio</th>
+                                    <th>Última modificación</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows.map((c) => `
+                                    <tr>
+                                        <td>${c.name || 'Sin nombre'}</td>
+                                        <td>${c.domain || '—'}</td>
+                                        <td>${c.lastModified ? new Date(c.lastModified).toLocaleDateString() : 'Desconocida'}</td>
+                                        <td>
+                                            <a href="https://app.hubspot.com/contacts/${portalId}/company/${c.id}" class="hubspot-link" target="_blank">
+                                                Ver en HubSpot →
+                                            </a>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    ${moreCount > 0 ? `<p class="no-data" style="padding-top:12px;">Mostrando ${rows.length} de ${totalShown}. El resto está en HubSpot.</p>` : ''}
+                ` : '<p class="no-data">No hay empresas en el listado de muestra. Ejecuta de nuevo el análisis o revisa permisos CRM en HubSpot.</p>'}
                 
                 <p style="margin-top: 20px;">
                     <a href="https://app.hubspot.com/contacts/${portalId}/objects/0-2/views/all/list" class="hubspot-link" target="_blank">
@@ -952,58 +1005,100 @@
             `;
         }
 
-        function renderToolsUnused(data) {
+        function getToolsDetailMeta(insightType) {
+            if (insightType === 'tools-unused-multiple') {
+                return {
+                    badgeClass: 'severity-info',
+                    badgeLabel: 'INFO',
+                    heading: 'Herramientas de HubSpot poco utilizadas',
+                    impact:
+                        'Posible subutilización de licencias. Hay módulos disponibles que podrían aportar valor si se adoptan.',
+                };
+            }
+            return {
+                badgeClass: 'severity-warning',
+                badgeLabel: 'MEDIO',
+                heading: 'Herramientas críticas sin usar',
+                impact:
+                    'Pérdida de ROI en licencias de HubSpot. Falta de automatización (p. ej. Workflows) reduce productividad del equipo.',
+            };
+        }
+
+        function renderToolsUnused(data, insightType) {
             const tools = data.tools || {};
-            const totalTools = (tools.inUse?.length || 0) + (tools.notInUse?.length || 0);
-            const unusedCount = tools.notInUse?.length || 0;
-            const unusedPercentage = totalTools > 0 ? ((unusedCount / totalTools) * 100).toFixed(1) : 0;
-            
+            const CRITICAL = ['Deals', 'Workflows', 'Forms'];
+            const allUnused = tools.unused || tools.notInUse || [];
+            const inUse = tools.inUse || [];
+
+            const isCriticalInsight =
+                insightType === 'tools-critical-unused' ||
+                insightType === 'tools-warning-unused';
+            const unusedList = isCriticalInsight
+                ? allUnused.filter((t) => CRITICAL.includes(t.tool))
+                : allUnused;
+            const unusedCount = unusedList.length;
+            const totalTools =
+                tools.totalTools != null
+                    ? tools.totalTools
+                    : allUnused.length + inUse.length;
+            const unusedPercentage =
+                totalTools > 0
+                    ? ((unusedCount / totalTools) * 100).toFixed(1)
+                    : '0.0';
+
+            const meta = getToolsDetailMeta(insightType || 'tools-critical-unused');
+            const unusedNames =
+                unusedCount > 0
+                    ? unusedList.map((t) => t.tool).join(', ')
+                    : 'ninguna detectada en este análisis';
+
             return `
-                <h1>Herramientas de HubSpot sin Usar</h1>
-                <span class="severity-badge severity-critical">CRÍTICO</span>
+                <h1>${meta.heading}</h1>
+                <span class="severity-badge ${meta.badgeClass}">${meta.badgeLabel}</span>
+                
                 
                 <div class="stats">
                     <div class="stat-card">
                         <div class="stat-value">${unusedCount}</div>
-                        <div class="stat-label">Herramientas sin usar</div>
+                        <div class="stat-label">Sin usar${isCriticalInsight ? ' (críticas)' : ''}</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value">${totalTools}</div>
-                        <div class="stat-label">Total disponibles</div>
+                        <div class="stat-value">${inUse.length}</div>
+                        <div class="stat-label">En uso detectado</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-value">${unusedPercentage}%</div>
-                        <div class="stat-label">Porcentaje sin usar</div>
+                        <div class="stat-label">Sin uso / total chequeado</div>
                     </div>
                 </div>
                 
                 <div class="summary">
-                    <p><strong>⚠️ Micro-contexto de muestreo:</strong> Este análisis detecta herramientas críticas de HubSpot que no están siendo utilizadas en tu cuenta.</p>
-                    <p><strong>Impacto en negocio:</strong> Estás pagando por funcionalidades que no aprovechas. Workflows, forms, landing pages y otras herramientas sin usar representan oportunidades de automatización y generación de leads desaprovechadas.</p>
-                    <p><strong>Recomendación:</strong></p>
-                    <ul style="margin-left: 20px; line-height: 1.8;">
-                        <li>Audita qué herramientas tienes disponibles vs. cuáles usas activamente</li>
-                        <li>Evalúa si necesitas capacitación para aprovechar estas herramientas</li>
-                        <li>Considera downgrade de plan si no usas herramientas premium</li>
-                        <li>Implementa workflows para automatizar procesos manuales</li>
-                    </ul>
+                    <p><strong>Contexto:</strong> Comparamos si existen registros o activos en módulos clave de HubSpot (muestra rápida por API, no uso diario del equipo).</p>
+                    <p><strong>Impacto:</strong> ${meta.impact}</p>
+                    <p><strong>Herramientas sin uso en este hallazgo:</strong> ${unusedNames}</p>
+                    <p><strong>Recomendación:</strong> Revisa si conviene capacitar al equipo, activar automatizaciones o ajustar el plan según lo que realmente uses.</p>
                 </div>
                 
                 ${unusedCount > 0 ? `
-                    <h2 style="margin-top: 30px; margin-bottom: 15px;">🔴 Herramientas sin usar detectadas:</h2>
+                    <h2 style="margin-top: 30px; margin-bottom: 15px;">Herramientas sin uso detectadas</h2>
                     <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;">
-                        ${tools.notInUse.slice(0, PREVIEW_LIMIT).map(tool => `
-                            <div style="padding: 8px 16px; background: #fee; border: 1px solid #fcc; border-radius: 6px; font-weight: 500;">
-                                ${tool.tool}
+                        ${unusedList.slice(0, PREVIEW_LIMIT).map((tool) => `
+                            <div style="padding: 8px 16px; background: #fff7ed; border: 1px solid #fdba74; border-radius: 6px; font-weight: 500;">
+                                ${tool.tool}${tool.reason ? ` — ${tool.reason}` : ''}
                             </div>
                         `).join('')}
                     </div>
-                ` : ''}
+                ` : `
+                    <p class="no-data" style="margin-top: 20px;">
+                        No se detectaron herramientas sin uso en los datos guardados de este análisis.
+                        Si el resumen del scan aún menciona Workflows u otras, vuelve a ejecutar el análisis para refrescar.
+                    </p>
+                `}
                 
-                ${tools.inUse?.length > 0 ? `
-                    <h2 style="margin-top: 30px; margin-bottom: 15px;">✅ Herramientas en uso:</h2>
+                ${inUse.length > 0 ? `
+                    <h2 style="margin-top: 30px; margin-bottom: 15px;">Herramientas con actividad detectada</h2>
                     <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                        ${tools.inUse.slice(0, PREVIEW_LIMIT).map(tool => `
+                        ${inUse.slice(0, PREVIEW_LIMIT).map((tool) => `
                             <div style="padding: 8px 16px; background: #efe; border: 1px solid #cfc; border-radius: 6px; font-weight: 500;">
                                 ${tool.tool}
                             </div>
@@ -1013,7 +1108,7 @@
                 
                 <p style="margin-top: 30px;">
                     <a href="https://app.hubspot.com/settings/${portalId}" class="hubspot-link" target="_blank">
-                        → Ver configuración de herramientas en HubSpot
+                        → Ver configuración en HubSpot
                     </a>
                 </p>
             `;
