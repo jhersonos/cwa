@@ -97,51 +97,20 @@ export async function analyzeDeals(fastify, portalId, token, options = {}) {
   const unlocked = Boolean(options.unlocked);
   const inactiveCutoffMs = msAgo(90);
 
-  const [
-    totalAll,
-    noContactSearch,
-    noOwner,
-    noPrice,
-    inactive,
-  ] = await Promise.all([
-    crmSearchTotal(token, "deals", filterAllRecords()),
-    crmSearchTotal(token, "deals", [
-      {
-        filters: [
-          {
-            propertyName: "num_associated_contacts",
-            operator: "EQ",
-            value: "0",
-          },
-        ],
-      },
-    ]),
-    crmSearchTotal(token, "deals", [
-      {
-        filters: [
-          { propertyName: "hubspot_owner_id", operator: "NOT_HAS_PROPERTY" },
-        ],
-      },
-    ]),
-    crmSearchTotal(token, "deals", [
-      {
-        filters: [{ propertyName: "amount", operator: "NOT_HAS_PROPERTY" }],
-      },
-      {
-        filters: [{ propertyName: "amount", operator: "EQ", value: "0" }],
-      },
-    ]),
-    crmSearchTotal(token, "deals", [
-      {
-        filters: [
-          {
-            propertyName: "hs_lastmodifieddate",
-            operator: "LT",
-            value: inactiveCutoffMs,
-          },
-        ],
-      },
-    ]),
+  // Secuencial para no saturar el rate-limit de CRM Search (~4 concurrentes por portal).
+  const totalAll = await crmSearchTotal(token, "deals", filterAllRecords());
+  const noContactSearch = await crmSearchTotal(token, "deals", [
+    { filters: [{ propertyName: "num_associated_contacts", operator: "EQ", value: "0" }] },
+  ]);
+  const noOwner = await crmSearchTotal(token, "deals", [
+    { filters: [{ propertyName: "hubspot_owner_id", operator: "NOT_HAS_PROPERTY" }] },
+  ]);
+  const noPrice = await crmSearchTotal(token, "deals", [
+    { filters: [{ propertyName: "amount", operator: "NOT_HAS_PROPERTY" }] },
+    { filters: [{ propertyName: "amount", operator: "EQ", value: "0" }] },
+  ]);
+  const inactive = await crmSearchTotal(token, "deals", [
+    { filters: [{ propertyName: "hs_lastmodifieddate", operator: "LT", value: inactiveCutoffMs }] },
   ]);
 
   const searchCoreFailed =
@@ -304,7 +273,8 @@ export async function analyzeDeals(fastify, portalId, token, options = {}) {
 /** Análisis previo (muestra 50 + asociaciones por deal) — fallback completo. */
 async function analyzeDealsLegacy(fastify, portalId, token, options = {}) {
   const unlocked = Boolean(options.unlocked);
-  const listLimit = unlocked ? 200 : 50;
+  const listLimit = unlocked ? 100 : 50;
+  const requestTimeout = unlocked ? 12000 : 5000;
   let deals = [];
   let limitedVisibility = false;
 
@@ -323,17 +293,22 @@ async function analyzeDealsLegacy(fastify, portalId, token, options = {}) {
           "pipeline",
         ].join(","),
       },
-      timeout: unlocked ? 12000 : 5000,
+      timeout: requestTimeout,
     });
     deals = res.data?.results || [];
   } catch (err) {
     const status = err?.response?.status;
-    if (status === 401 || status === 403 || status === 429) {
+    const isTimeout = err?.code === "ECONNABORTED" || err?.code === "ETIMEDOUT";
+    if (status === 401 || status === 403 || status === 429 || status === 404 || status === 503 || isTimeout) {
+      fastify.log.warn(
+        { portalId, status: status ?? err?.code, unlocked },
+        "Deal sample fetch degraded"
+      );
       limitedVisibility = true;
       deals = [];
     } else {
       fastify.log.error(
-        { err, portalId, unlocked },
+        { err: { message: err?.message, code: err?.code, status }, portalId, unlocked },
         "Deal analysis failed unexpectedly"
       );
       limitedVisibility = true;

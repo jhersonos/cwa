@@ -14,39 +14,24 @@ import {
 export async function analyzeContacts(fastify, portalId, token) {
   const staleCutoffMs = msAgo(180);
 
-  const [totalAll, noEmail, noPhone, noLife, stale] = await Promise.all([
-    crmSearchTotal(token, "contacts", filterAllRecords()),
-    crmSearchTotal(token, "contacts", [
-      {
-        filters: [{ propertyName: "email", operator: "NOT_HAS_PROPERTY" }],
-      },
-    ]),
-    crmSearchTotal(token, "contacts", [
-      {
-        filters: [
-          { propertyName: "phone", operator: "NOT_HAS_PROPERTY" },
-          { propertyName: "mobilephone", operator: "NOT_HAS_PROPERTY" },
-        ],
-      },
-    ]),
-    crmSearchTotal(token, "contacts", [
-      {
-        filters: [
-          { propertyName: "lifecyclestage", operator: "NOT_HAS_PROPERTY" },
-        ],
-      },
-    ]),
-    crmSearchTotal(token, "contacts", [
-      {
-        filters: [
-          {
-            propertyName: "hs_lastmodifieddate",
-            operator: "LT",
-            value: staleCutoffMs,
-          },
-        ],
-      },
-    ]),
+  // Secuencial para no saturar el rate-limit de CRM Search (~4 concurrentes por portal).
+  const totalAll = await crmSearchTotal(token, "contacts", filterAllRecords());
+  const noEmail = await crmSearchTotal(token, "contacts", [
+    { filters: [{ propertyName: "email", operator: "NOT_HAS_PROPERTY" }] },
+  ]);
+  const noPhone = await crmSearchTotal(token, "contacts", [
+    {
+      filters: [
+        { propertyName: "phone", operator: "NOT_HAS_PROPERTY" },
+        { propertyName: "mobilephone", operator: "NOT_HAS_PROPERTY" },
+      ],
+    },
+  ]);
+  const noLife = await crmSearchTotal(token, "contacts", [
+    { filters: [{ propertyName: "lifecyclestage", operator: "NOT_HAS_PROPERTY" }] },
+  ]);
+  const stale = await crmSearchTotal(token, "contacts", [
+    { filters: [{ propertyName: "hs_lastmodifieddate", operator: "LT", value: staleCutoffMs }] },
   ]);
 
   const searchFailed =

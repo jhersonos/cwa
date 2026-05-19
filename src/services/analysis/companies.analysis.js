@@ -59,32 +59,19 @@ export async function analyzeCompanies(fastify, portalId, token, options = {}) {
   const unlocked = Boolean(options.unlocked);
   const inactiveCutoffMs = msAgo(90);
 
-  const [totalAll, noDomain, noOwner, noPhone, inactive] = await Promise.all([
-    crmSearchTotal(token, "companies", filterAllRecords()),
-    crmSearchTotal(token, "companies", [
-      { filters: [{ propertyName: "domain", operator: "NOT_HAS_PROPERTY" }] },
-    ]),
-    crmSearchTotal(token, "companies", [
-      {
-        filters: [
-          { propertyName: "hubspot_owner_id", operator: "NOT_HAS_PROPERTY" },
-        ],
-      },
-    ]),
-    crmSearchTotal(token, "companies", [
-      { filters: [{ propertyName: "phone", operator: "NOT_HAS_PROPERTY" }] },
-    ]),
-    crmSearchTotal(token, "companies", [
-      {
-        filters: [
-          {
-            propertyName: "hs_lastmodifieddate",
-            operator: "LT",
-            value: inactiveCutoffMs,
-          },
-        ],
-      },
-    ]),
+  // Secuencial para no saturar el rate-limit de CRM Search (~4 concurrentes por portal).
+  const totalAll = await crmSearchTotal(token, "companies", filterAllRecords());
+  const noDomain = await crmSearchTotal(token, "companies", [
+    { filters: [{ propertyName: "domain", operator: "NOT_HAS_PROPERTY" }] },
+  ]);
+  const noOwner = await crmSearchTotal(token, "companies", [
+    { filters: [{ propertyName: "hubspot_owner_id", operator: "NOT_HAS_PROPERTY" }] },
+  ]);
+  const noPhone = await crmSearchTotal(token, "companies", [
+    { filters: [{ propertyName: "phone", operator: "NOT_HAS_PROPERTY" }] },
+  ]);
+  const inactive = await crmSearchTotal(token, "companies", [
+    { filters: [{ propertyName: "hs_lastmodifieddate", operator: "LT", value: inactiveCutoffMs }] },
   ]);
 
   const searchFailed =
@@ -198,7 +185,8 @@ export async function analyzeCompanies(fastify, portalId, token, options = {}) {
 
 async function analyzeCompaniesSample(fastify, portalId, token, options = {}) {
   const unlocked = Boolean(options.unlocked);
-  const listLimit = unlocked ? 200 : 50;
+  const listLimit = unlocked ? 100 : 50;
+  const requestTimeout = unlocked ? 12000 : 5000;
   let companies = [];
   let limitedVisibility = false;
 
@@ -211,18 +199,23 @@ async function analyzeCompaniesSample(fastify, portalId, token, options = {}) {
         limit: listLimit,
         properties: COMPANY_PROPERTIES.join(","),
       },
-      timeout: 2500,
+      timeout: requestTimeout,
     });
 
     companies = res.data?.results || [];
   } catch (err) {
     const status = err?.response?.status;
-    if (status === 401 || status === 403 || status === 429) {
+    const isTimeout = err?.code === "ECONNABORTED" || err?.code === "ETIMEDOUT";
+    if (status === 401 || status === 403 || status === 429 || status === 404 || status === 503 || isTimeout) {
+      fastify.log.warn(
+        { portalId, status: status ?? err?.code, unlocked },
+        "Company sample fetch degraded"
+      );
       limitedVisibility = true;
       companies = [];
     } else {
       fastify.log.error(
-        { err, portalId },
+        { err: { message: err?.message, code: err?.code, status }, portalId, unlocked },
         "Company analysis failed unexpectedly"
       );
       limitedVisibility = true;

@@ -66,17 +66,27 @@ export async function runScanV3(req, reply) {
     const token = await getValidAccessToken(req.server, portalId);
 
     /* ------------------------
-       FASE 4 — BASE SCANS (AISLADOS)
-       🚀 Análisis rápido - core objects + tools (optimizado)
+       FASE 4 — BASE SCANS (SECUENCIALES POR OBJETO)
+       Evitar saturar rate-limit de HubSpot con 20 llamadas CRM-Search en paralelo.
+       Contacts primero (más simple), luego deals y companies con pequeña pausa,
+       tools en paralelo al final (no usa CRM Search).
     ------------------------ */
     const scanOpts = { unlocked: Boolean(unlockStatus.unlocked) };
 
-    const results = await Promise.allSettled([
+    const [contactsResult, toolsResult] = await Promise.allSettled([
       analyzeContacts(req.server, portalId, token, scanOpts),
-      analyzeDeals(req.server, portalId, token, scanOpts),
-      analyzeCompanies(req.server, portalId, token, scanOpts),
       analyzeToolsUsage(req.server, portalId, token),
     ]);
+
+    // Pequeña pausa para que HubSpot drene el rate-limit
+    await new Promise((r) => setTimeout(r, 300));
+
+    const [dealsResult, companiesResult] = await Promise.allSettled([
+      analyzeDeals(req.server, portalId, token, scanOpts),
+      analyzeCompanies(req.server, portalId, token, scanOpts),
+    ]);
+
+    const results = [contactsResult, dealsResult, companiesResult, toolsResult];
 
     // 🛡️ Extraer resultados con fallbacks seguros (misma forma que analyze* para insights/export)
     const contacts =
