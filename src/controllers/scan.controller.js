@@ -22,13 +22,16 @@ import {
   getLastScanResult
 } from "../services/history/history.service.js";
 import { calculateBenchmark } from "../services/analysis/benchmark.service.js";
-import { checkUnlockStatus } from "../services/unlock/token.service.js";
+import {
+  checkUnlockStatus,
+  normalizePortalId
+} from "../services/unlock/token.service.js";
 
 /**
  * 🔒 SCAN V3 — MARKETPLACE SAFE
  */
 export async function runScanV3(req, reply) {
-  const { portalId } = req.query;
+  const portalId = normalizePortalId(req.query.portalId);
 
   if (!portalId) {
     return reply.code(400).send({ error: "Missing portalId" });
@@ -44,7 +47,7 @@ export async function runScanV3(req, reply) {
     const unlockStatus = await checkUnlockStatus(req.server, portalId);
     const quota = await getFreeScanQuota(
       req.server,
-      portalId,
+      unlockStatus.portalId || portalId,
       Boolean(unlockStatus.unlocked)
     );
     if (!quota.allowed) {
@@ -190,7 +193,7 @@ export async function runScanV3(req, reply) {
 
     const responseBody = {
       version: "v3",
-      portalId,
+      portalId: unlockStatus.portalId || portalId,
       efficiency,
       benchmark,
       prioritization,
@@ -201,8 +204,16 @@ export async function runScanV3(req, reply) {
       companies,
       tools,
       trafficLights,
+      access: {
+        unlocked: Boolean(unlockStatus.unlocked),
+        expiresAt: unlockStatus.expiresAt || null,
+        freeScanAllowed: quota.allowed,
+        nextFreeScanAt: quota.nextAllowedAt,
+        lastFreeScanAt: quota.lastScanAt
+      },
       meta: {
-        durationMs: duration
+        durationMs: duration,
+        unlocked: Boolean(unlockStatus.unlocked)
       }
     };
 

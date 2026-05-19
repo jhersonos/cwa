@@ -1,5 +1,6 @@
 import axios from "axios";
 import crypto from "crypto";
+import { normalizePortalId } from "../unlock/token.service.js";
 
 /**
  * Columnas opcionales en `portals`; si la migración 004 no corrió, las updates fallan en silencio parcial.
@@ -246,11 +247,14 @@ export async function activateProForPortal(
   portalId,
   { days = 365, paymentReference = "ADMIN_MANUAL", email = null }
 ) {
-  const pid = String(portalId);
+  const pid = normalizePortalId(portalId);
   const [portals] = await fastify.mysql.query(
-    "SELECT portal_id FROM portals WHERE portal_id = ? LIMIT 1",
-    [pid]
+    `SELECT portal_id FROM portals
+     WHERE portal_id = ? OR CAST(portal_id AS CHAR) = ?
+     LIMIT 1`,
+    [pid, pid]
   );
+  const canonicalId = portals.length ? String(portals[0].portal_id) : pid;
   if (!portals.length) {
     return { ok: false, message: "Portal no encontrado" };
   }
@@ -263,7 +267,7 @@ export async function activateProForPortal(
   await fastify.mysql.query(
     `UPDATE unlock_tokens SET status = 'revoked'
      WHERE portal_id = ? AND status = 'active'`,
-    [pid]
+    [canonicalId]
   );
 
   const token = crypto.randomBytes(16).toString("hex");
@@ -273,17 +277,20 @@ export async function activateProForPortal(
   await fastify.mysql.query(
     `INSERT INTO unlock_tokens (portal_id, token, expires_at, payment_reference, status)
      VALUES (?, ?, ?, ?, 'active')`,
-    [pid, token, expiresAt, paymentReference]
+    [canonicalId, token, expiresAt, paymentReference]
   );
 
   if (email && (await columnExists(fastify, "portals", "installer_email"))) {
     await fastify.mysql.query(
       `UPDATE portals SET installer_email = COALESCE(installer_email, ?) WHERE portal_id = ?`,
-      [email.trim().toLowerCase(), pid]
+      [email.trim().toLowerCase(), canonicalId]
     );
   }
 
-  fastify.log.info({ portalId: pid, days, paymentReference }, "Pro activated from admin");
+  fastify.log.info(
+    { portalId: pid, canonicalId, days, paymentReference },
+    "Pro activated from admin"
+  );
 
   return {
     ok: true,

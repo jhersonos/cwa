@@ -10,12 +10,23 @@
             padding: 0;
             box-sizing: border-box;
         }
+
+        html {
+            width: 100%;
+            max-width: 100%;
+            -webkit-text-size-adjust: 100%;
+        }
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             padding: 0;
+            margin: 0;
+            width: 100%;
+            max-width: 100%;
+            min-height: 100%;
             background: #f5f5f5;
             color: #333;
+            overflow-x: hidden;
         }
         
         .container {
@@ -26,6 +37,102 @@
             padding: 30px;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        /* Modal iframe HubSpot: ocupar ancho del visor sin desbordar */
+        html.iframe-embed,
+        body.iframe-embed {
+            background: #fff;
+        }
+
+        body.iframe-embed {
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        body.iframe-embed .container {
+            max-width: none;
+            width: 100%;
+            margin: 0;
+            padding: 20px 24px 32px;
+            border-radius: 0;
+            box-shadow: none;
+            min-height: 100%;
+        }
+
+        body.iframe-embed #content {
+            width: 100%;
+            max-width: 100%;
+        }
+
+        body.iframe-embed h1 {
+            font-size: 1.35rem;
+            line-height: 1.3;
+            padding-right: 8px;
+        }
+
+        body.iframe-embed .stats {
+            gap: 12px;
+        }
+
+        body.iframe-embed .stat-card {
+            min-width: 0;
+            flex: 1 1 calc(50% - 6px);
+        }
+
+        body.iframe-embed .summary {
+            padding: 14px 16px;
+        }
+
+        body.iframe-embed .summary p,
+        body.iframe-embed .table-container {
+            max-width: 100%;
+        }
+
+        body.iframe-embed .table-container {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin-left: 0;
+            margin-right: 0;
+        }
+
+        body.iframe-embed table {
+            width: 100%;
+            max-width: 100%;
+            table-layout: fixed;
+        }
+
+        body.iframe-embed th,
+        body.iframe-embed td {
+            padding: 10px 12px;
+            font-size: 13px;
+            vertical-align: top;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+
+        body.iframe-embed th:nth-child(1),
+        body.iframe-embed td:nth-child(1) {
+            width: 38%;
+        }
+
+        body.iframe-embed th:nth-child(2),
+        body.iframe-embed td:nth-child(2) {
+            width: 22%;
+        }
+
+        body.iframe-embed th:nth-child(3),
+        body.iframe-embed td:nth-child(3) {
+            width: 18%;
+        }
+
+        body.iframe-embed th:nth-child(4),
+        body.iframe-embed td:nth-child(4) {
+            width: 22%;
+        }
+
+        body.iframe-embed .hubspot-link {
+            white-space: normal;
         }
         
         h1 {
@@ -164,6 +271,19 @@
     </style>
 </head>
 <body>
+    <script>
+      (function () {
+        try {
+          if (window.self !== window.top) {
+            document.documentElement.classList.add("iframe-embed");
+            document.body.classList.add("iframe-embed");
+          }
+        } catch (_) {
+          document.documentElement.classList.add("iframe-embed");
+          document.body.classList.add("iframe-embed");
+        }
+      })();
+    </script>
     <div class="container">
         <div id="content">
             <div class="loading">

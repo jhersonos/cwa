@@ -97,16 +97,16 @@ export default async function oauthRoutes(fastify) {
           refresh_token = VALUES(refresh_token),
           expires_at = VALUES(expires_at)
         `,
-        [hub_id, access_token, refresh_token, expiresAt]
+        [String(hub_id), access_token, refresh_token, expiresAt]
       );
 
-      enrichPortalFromHubSpot(fastify, hub_id, access_token).catch((err) => {
+      enrichPortalFromHubSpot(fastify, String(hub_id), access_token).catch((err) => {
         fastify.log.warn({ err: err.message, hub_id }, "Portal enrich after OAuth failed");
       });
 
       console.log("✅ Guardado exitoso. Redirigiendo a success page...");
 
-      reply.redirect(`/oauth-success.html?portalId=${hub_id}`);
+      reply.redirect(`/oauth-success.html?portalId=${String(hub_id)}`);
 
     } catch (err) {
       console.error("❌ ERROR EN OAUTH CALLBACK:");

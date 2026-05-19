@@ -323,7 +323,7 @@ async function analyzeDealsLegacy(fastify, portalId, token, options = {}) {
           "pipeline",
         ].join(","),
       },
-      timeout: 2500,
+      timeout: unlocked ? 12000 : 5000,
     });
     deals = res.data?.results || [];
   } catch (err) {
@@ -333,7 +333,7 @@ async function analyzeDealsLegacy(fastify, portalId, token, options = {}) {
       deals = [];
     } else {
       fastify.log.error(
-        { err, portalId },
+        { err, portalId, unlocked },
         "Deal analysis failed unexpectedly"
       );
       limitedVisibility = true;
