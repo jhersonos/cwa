@@ -1,5 +1,6 @@
 // src/routes/oauth.js
 import axios from "axios";
+import { enrichPortalFromHubSpot } from "../services/portal/portal.service.js";
 
 export default async function oauthRoutes(fastify) {
   const {
@@ -98,6 +99,10 @@ export default async function oauthRoutes(fastify) {
         `,
         [hub_id, access_token, refresh_token, expiresAt]
       );
+
+      enrichPortalFromHubSpot(fastify, hub_id, access_token).catch((err) => {
+        fastify.log.warn({ err: err.message, hub_id }, "Portal enrich after OAuth failed");
+      });
 
       console.log("✅ Guardado exitoso. Redirigiendo a success page...");
 

@@ -18,6 +18,8 @@ import paymentRoutes from "./routes/payment.js";
 import listsRoutes from "./routes/lists.js";
 import listsDebugRoutes from "./routes/listsDebug.js";
 import marketingRoutes from "./routes/marketing.js";
+import adminRoutes from "./routes/admin.js";
+import portalRoutes from "./routes/portal.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -66,6 +68,8 @@ export default async function buildApp() {
   await app.register(listsRoutes);
   await app.register(listsDebugRoutes);
   await app.register(marketingRoutes, { prefix: '/api/marketing' });
+  await app.register(adminRoutes);
+  await app.register(portalRoutes);
   
   app.get("/", async () => {
     return {
@@ -83,6 +87,18 @@ export default async function buildApp() {
     } catch (error) {
       app.log.error({ err: error }, "Error serving downloading.html");
       reply.code(500).send({ error: "Failed to load download page" });
+    }
+  });
+
+  // Panel admin (login + clientes HubSpot + activación Pro)
+  app.get("/admin", async (req, reply) => {
+    try {
+      const htmlPath = path.join(__dirname, '../public/admin.html');
+      const html = readFileSync(htmlPath, 'utf-8');
+      reply.type('text/html').send(html);
+    } catch (error) {
+      app.log.error({ err: error }, "Error serving admin.html");
+      reply.code(500).send({ error: "Failed to load admin panel" });
     }
   });
 
