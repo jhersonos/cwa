@@ -16,16 +16,18 @@ export async function fetchAllContacts(
   token,
   options = {}
 ) {
-  const LIMIT = options.limit || 100; // 🚀 Máximo 100 contactos para velocidad extrema
+  const unlocked = Boolean(options.unlocked);
+  // Pro: paginar todo; Free: máx 100 en 1 página
+  const LIMIT = unlocked ? Infinity : (options.limit || 100);
+  const MAX_PAGES = unlocked ? Infinity : 1;
 
   const contacts = [];
   let after = undefined;
-  const MAX_PAGES = 1; // 🚀 Solo 1 página para máxima velocidad
   let pageCount = 0;
 
   try {
     while (contacts.length < LIMIT && pageCount < MAX_PAGES) {
-      const remaining = LIMIT - contacts.length;
+      const remaining = Number.isFinite(LIMIT) ? LIMIT - contacts.length : 100;
       const pageSize = Math.min(100, remaining);
 
       const res = await axios.get(
@@ -47,7 +49,7 @@ export async function fetchAllContacts(
               "lastname"
             ].join(",")
           },
-          timeout: 2500 // 🚀 Reducido para velocidad máxima
+          timeout: unlocked ? 12000 : 2500
         }
       );
 

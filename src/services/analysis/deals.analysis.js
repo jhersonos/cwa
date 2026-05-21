@@ -90,7 +90,34 @@ function inactiveDealFilterGroups() {
 }
 
 function detailItemsCap(unlocked) {
-  return unlocked ? 500 : 100;
+  return unlocked ? 5000 : 100;
+}
+
+/**
+ * Pagina el endpoint de objetos de HubSpot hasta agotar los registros o el límite.
+ * La API de objetos soporta máx 100 por página.
+ */
+async function fetchAllHubSpotObjects(token, objectType, properties, { maxRecords = Infinity, timeout = 12000 } = {}) {
+  const results = [];
+  let after;
+  try {
+    do {
+      const params = { limit: 100, properties: properties.join(",") };
+      if (after) params.after = after;
+      const res = await axios.get(`${HUBSPOT_API}/crm/v3/objects/${objectType}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params,
+        timeout,
+      });
+      const batch = res.data?.results || [];
+      results.push(...batch);
+      after = res.data?.paging?.next?.after;
+      if (!after || batch.length === 0 || results.length >= maxRecords) break;
+    } while (true);
+  } catch {
+    /* retornar lo que se tenga */
+  }
+  return results.slice(0, maxRecords);
 }
 
 export async function analyzeDeals(fastify, portalId, token, options = {}) {
@@ -195,21 +222,22 @@ export async function analyzeDeals(fastify, portalId, token, options = {}) {
 
   let stagesSummary = [];
   try {
-    const res = await axios.get(`${HUBSPOT_API}/crm/v3/objects/deals`, {
-      headers: { Authorization: `Bearer ${token}` },
-      params: {
-        limit: 100,
-        properties: "dealstage",
-      },
-      timeout: 4000,
-    });
-    const batch = res.data?.results || [];
+    const stageDeals = unlocked
+      ? await fetchAllHubSpotObjects(token, "deals", ["dealstage"], { timeout: 12000 })
+      : await (async () => {
+          const res = await axios.get(`${HUBSPOT_API}/crm/v3/objects/deals`, {
+            headers: { Authorization: `Bearer ${token}` },
+            params: { limit: 100, properties: "dealstage" },
+            timeout: 4000,
+          });
+          return res.data?.results || [];
+        })();
     const stages = {};
-    batch.forEach((d) => {
+    stageDeals.forEach((d) => {
       const stage = d.properties?.dealstage || "Sin etapa";
       stages[stage] = (stages[stage] || 0) + 1;
     });
-    const ref = batch.length || 1;
+    const ref = stageDeals.length || 1;
     stagesSummary = Object.entries(stages).map(([stage, count]) => ({
       stage,
       count,
@@ -270,32 +298,25 @@ export async function analyzeDeals(fastify, portalId, token, options = {}) {
   };
 }
 
-/** Análisis previo (muestra 50 + asociaciones por deal) — fallback completo. */
+/** Análisis previo (muestra acotada + asociaciones por deal) — fallback completo. */
 async function analyzeDealsLegacy(fastify, portalId, token, options = {}) {
   const unlocked = Boolean(options.unlocked);
-  const listLimit = unlocked ? 100 : 50;
   const requestTimeout = unlocked ? 12000 : 5000;
+  const dealProps = ["dealname", "dealstage", "amount", "hubspot_owner_id", "hs_lastmodifieddate", "closedate", "pipeline"];
   let deals = [];
   let limitedVisibility = false;
 
   try {
-    const res = await axios.get(`${HUBSPOT_API}/crm/v3/objects/deals`, {
-      headers: { Authorization: `Bearer ${token}` },
-      params: {
-        limit: listLimit,
-        properties: [
-          "dealname",
-          "dealstage",
-          "amount",
-          "hubspot_owner_id",
-          "hs_lastmodifieddate",
-          "closedate",
-          "pipeline",
-        ].join(","),
-      },
-      timeout: requestTimeout,
-    });
-    deals = res.data?.results || [];
+    if (unlocked) {
+      deals = await fetchAllHubSpotObjects(token, "deals", dealProps, { timeout: requestTimeout });
+    } else {
+      const res = await axios.get(`${HUBSPOT_API}/crm/v3/objects/deals`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { limit: 50, properties: dealProps.join(",") },
+        timeout: requestTimeout,
+      });
+      deals = res.data?.results || [];
+    }
   } catch (err) {
     const status = err?.response?.status;
     const isTimeout = err?.code === "ECONNABORTED" || err?.code === "ETIMEDOUT";

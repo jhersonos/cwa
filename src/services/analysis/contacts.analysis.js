@@ -11,7 +11,8 @@ import {
  * Prioridad: conteos globales vía CRM Search (`total`), sin paginar toda la base.
  * Fallback: muestra acotada si Search falla (permisos / índice).
  */
-export async function analyzeContacts(fastify, portalId, token) {
+export async function analyzeContacts(fastify, portalId, token, options = {}) {
+  const unlocked = Boolean(options.unlocked);
   const staleCutoffMs = msAgo(180);
 
   // Secuencial con corto-circuito: si el primer total falla, saltar las demás.
@@ -46,7 +47,7 @@ export async function analyzeContacts(fastify, portalId, token) {
       { portalId },
       "Contacts: CRM Search totals unavailable, using sample fallback"
     );
-    return analyzeContactsSample(fastify, portalId, token);
+    return analyzeContactsSample(fastify, portalId, token, { unlocked });
   }
 
   const total = totalAll;
@@ -90,14 +91,16 @@ export async function analyzeContacts(fastify, portalId, token) {
   };
 }
 
-async function analyzeContactsSample(fastify, portalId, token) {
+async function analyzeContactsSample(fastify, portalId, token, options = {}) {
+  const unlocked = Boolean(options.unlocked);
   let contacts = [];
   let limitedVisibility = false;
   let visibilityError = false;
 
   try {
     contacts = await fetchAllContacts(fastify, portalId, token, {
-      limit: 100,
+      limit: unlocked ? Infinity : 100,
+      unlocked,
     });
 
     if (!Array.isArray(contacts)) {

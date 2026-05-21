@@ -42,7 +42,33 @@ function inactiveCompanyFilterGroups() {
 }
 
 function detailItemsCap(unlocked) {
-  return unlocked ? 500 : 100;
+  return unlocked ? 5000 : 100;
+}
+
+/**
+ * Pagina el endpoint de objetos de HubSpot hasta agotar los registros o el límite.
+ */
+async function fetchAllHubSpotObjects(token, objectType, properties, { maxRecords = Infinity, timeout = 12000 } = {}) {
+  const results = [];
+  let after;
+  try {
+    do {
+      const params = { limit: 100, properties: properties.join(",") };
+      if (after) params.after = after;
+      const res = await axios.get(`${HUBSPOT_API}/crm/v3/objects/${objectType}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params,
+        timeout,
+      });
+      const batch = res.data?.results || [];
+      results.push(...batch);
+      after = res.data?.paging?.next?.after;
+      if (!after || batch.length === 0 || results.length >= maxRecords) break;
+    } while (true);
+  } catch {
+    /* retornar lo que se tenga */
+  }
+  return results.slice(0, maxRecords);
 }
 
 const HUBSPOT_API = "https://api.hubapi.com";
@@ -185,24 +211,21 @@ export async function analyzeCompanies(fastify, portalId, token, options = {}) {
 
 async function analyzeCompaniesSample(fastify, portalId, token, options = {}) {
   const unlocked = Boolean(options.unlocked);
-  const listLimit = unlocked ? 100 : 50;
   const requestTimeout = unlocked ? 12000 : 5000;
   let companies = [];
   let limitedVisibility = false;
 
   try {
-    const res = await axios.get(`${HUBSPOT_API}/crm/v3/objects/companies`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      params: {
-        limit: listLimit,
-        properties: COMPANY_PROPERTIES.join(","),
-      },
-      timeout: requestTimeout,
-    });
-
-    companies = res.data?.results || [];
+    if (unlocked) {
+      companies = await fetchAllHubSpotObjects(token, "companies", COMPANY_PROPERTIES, { timeout: requestTimeout });
+    } else {
+      const res = await axios.get(`${HUBSPOT_API}/crm/v3/objects/companies`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { limit: 50, properties: COMPANY_PROPERTIES.join(",") },
+        timeout: requestTimeout,
+      });
+      companies = res.data?.results || [];
+    }
   } catch (err) {
     const status = err?.response?.status;
     const isTimeout = err?.code === "ECONNABORTED" || err?.code === "ETIMEDOUT";
