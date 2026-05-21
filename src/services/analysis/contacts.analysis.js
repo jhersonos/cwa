@@ -14,23 +14,23 @@ import {
 export async function analyzeContacts(fastify, portalId, token) {
   const staleCutoffMs = msAgo(180);
 
-  // Secuencial para no saturar el rate-limit de CRM Search (~4 concurrentes por portal).
+  // Secuencial con corto-circuito: si el primer total falla, saltar las demás.
   const totalAll = await crmSearchTotal(token, "contacts", filterAllRecords());
-  const noEmail = await crmSearchTotal(token, "contacts", [
+  const noEmail  = totalAll == null ? null : await crmSearchTotal(token, "contacts", [
     { filters: [{ propertyName: "email", operator: "NOT_HAS_PROPERTY" }] },
   ]);
-  const noPhone = await crmSearchTotal(token, "contacts", [
+  const noPhone  = noEmail  == null ? null : await crmSearchTotal(token, "contacts", [
     {
       filters: [
-        { propertyName: "phone", operator: "NOT_HAS_PROPERTY" },
+        { propertyName: "phone",       operator: "NOT_HAS_PROPERTY" },
         { propertyName: "mobilephone", operator: "NOT_HAS_PROPERTY" },
       ],
     },
   ]);
-  const noLife = await crmSearchTotal(token, "contacts", [
+  const noLife   = noPhone  == null ? null : await crmSearchTotal(token, "contacts", [
     { filters: [{ propertyName: "lifecyclestage", operator: "NOT_HAS_PROPERTY" }] },
   ]);
-  const stale = await crmSearchTotal(token, "contacts", [
+  const stale    = noLife   == null ? null : await crmSearchTotal(token, "contacts", [
     { filters: [{ propertyName: "hs_lastmodifieddate", operator: "LT", value: staleCutoffMs }] },
   ]);
 

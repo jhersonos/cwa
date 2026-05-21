@@ -26,7 +26,7 @@ export async function crmSearchTotal(token, objectType, filterGroups) {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        timeout: 8000,
+        timeout: 5000,
       }
     );
     const t = res.data?.total;

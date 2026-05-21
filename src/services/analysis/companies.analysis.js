@@ -59,18 +59,18 @@ export async function analyzeCompanies(fastify, portalId, token, options = {}) {
   const unlocked = Boolean(options.unlocked);
   const inactiveCutoffMs = msAgo(90);
 
-  // Secuencial para no saturar el rate-limit de CRM Search (~4 concurrentes por portal).
+  // Secuencial con corto-circuito: si el primer total falla, saltar las demás.
   const totalAll = await crmSearchTotal(token, "companies", filterAllRecords());
-  const noDomain = await crmSearchTotal(token, "companies", [
+  const noDomain = totalAll == null ? null : await crmSearchTotal(token, "companies", [
     { filters: [{ propertyName: "domain", operator: "NOT_HAS_PROPERTY" }] },
   ]);
-  const noOwner = await crmSearchTotal(token, "companies", [
+  const noOwner  = totalAll == null ? null : await crmSearchTotal(token, "companies", [
     { filters: [{ propertyName: "hubspot_owner_id", operator: "NOT_HAS_PROPERTY" }] },
   ]);
-  const noPhone = await crmSearchTotal(token, "companies", [
+  const noPhone  = totalAll == null ? null : await crmSearchTotal(token, "companies", [
     { filters: [{ propertyName: "phone", operator: "NOT_HAS_PROPERTY" }] },
   ]);
-  const inactive = await crmSearchTotal(token, "companies", [
+  const inactive = totalAll == null ? null : await crmSearchTotal(token, "companies", [
     { filters: [{ propertyName: "hs_lastmodifieddate", operator: "LT", value: inactiveCutoffMs }] },
   ]);
 

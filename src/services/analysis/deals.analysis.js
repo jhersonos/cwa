@@ -97,19 +97,19 @@ export async function analyzeDeals(fastify, portalId, token, options = {}) {
   const unlocked = Boolean(options.unlocked);
   const inactiveCutoffMs = msAgo(90);
 
-  // Secuencial para no saturar el rate-limit de CRM Search (~4 concurrentes por portal).
-  const totalAll = await crmSearchTotal(token, "deals", filterAllRecords());
-  const noContactSearch = await crmSearchTotal(token, "deals", [
+  // Secuencial con corto-circuito: si el primer total falla, saltar las demás.
+  const totalAll        = await crmSearchTotal(token, "deals", filterAllRecords());
+  const noContactSearch = totalAll == null ? null : await crmSearchTotal(token, "deals", [
     { filters: [{ propertyName: "num_associated_contacts", operator: "EQ", value: "0" }] },
   ]);
-  const noOwner = await crmSearchTotal(token, "deals", [
+  const noOwner         = totalAll == null ? null : await crmSearchTotal(token, "deals", [
     { filters: [{ propertyName: "hubspot_owner_id", operator: "NOT_HAS_PROPERTY" }] },
   ]);
-  const noPrice = await crmSearchTotal(token, "deals", [
+  const noPrice         = totalAll == null ? null : await crmSearchTotal(token, "deals", [
     { filters: [{ propertyName: "amount", operator: "NOT_HAS_PROPERTY" }] },
     { filters: [{ propertyName: "amount", operator: "EQ", value: "0" }] },
   ]);
-  const inactive = await crmSearchTotal(token, "deals", [
+  const inactive        = totalAll == null ? null : await crmSearchTotal(token, "deals", [
     { filters: [{ propertyName: "hs_lastmodifieddate", operator: "LT", value: inactiveCutoffMs }] },
   ]);
 
