@@ -36,7 +36,7 @@ mysql -u tu_usuario -p tu_database < 002_add_unlock_tokens.sql
 3. Pegarlo en tu cliente MySQL
 4. Ejecutar
 
-Repetir con `002_add_unlock_tokens.sql`
+Repetir con `002_add_unlock_tokens.sql`, `003_add_result_payload_to_scan_history.sql` y `004_portal_admin_metadata.sql` (emails y dashboard admin).
 
 ## Verificar que las migraciones se ejecutaron
 

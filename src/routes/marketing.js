@@ -4,6 +4,7 @@ import { analyzeFormsTeaser } from '../services/marketing/forms.teaser.js';
 import { analyzeLeadScoringTeaser } from '../services/marketing/leadScoring.teaser.js';
 import { analyzeLandingPagesTeaser } from '../services/marketing/landingPages.teaser.js';
 import { analyzeListsTeaser } from '../services/marketing/lists.teaser.js';
+import { analyzeAeoHome } from '../services/marketing/aeoHome.analysis.js';
 
 export default async function marketingRoutes(fastify, options) {
   
@@ -125,6 +126,22 @@ export default async function marketingRoutes(fastify, options) {
       const portalId = parseInt(request.params.portalId, 10);
       if (!portalId || isNaN(portalId)) return reply.code(400).send({ success: false, error: 'Portal ID inválido' });
       const data = await analyzeListsTeaser(portalId, fastify);
+      return reply.code(200).send({ success: true, portalId, data });
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ success: false, error: err.message });
+    }
+  });
+
+  /**
+   * GET /api/marketing/aeo-home/:portalId
+   * AEO del Home (Website Pages CMS + HTML público)
+   */
+  fastify.get('/aeo-home/:portalId', async (request, reply) => {
+    try {
+      const portalId = parseInt(request.params.portalId, 10);
+      if (!portalId || isNaN(portalId)) return reply.code(400).send({ success: false, error: 'Portal ID inválido' });
+      const data = await analyzeAeoHome(portalId, fastify);
       return reply.code(200).send({ success: true, portalId, data });
     } catch (err) {
       fastify.log.error(err);

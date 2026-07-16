@@ -337,3 +337,14 @@ fastify.post("/api/unlock/create-token", async (req, reply) => {
 
 **Recomendación:** Implementar pasarela en WordPress.
 
+---
+
+## Checkout Pro en `cwa-backend` (Railway)
+
+El backend actual expone Mercado Pago Checkout Pro (`/payment`, preferencia en `/api/payment/create-preference`, webhook en `/api/payment/webhook`).
+
+- **Rechazos y motivos:** en logs del webhook se registran `status`, `status_detail` (por ejemplo `cc_rejected_*`) y `cause` cuando aplica. Consulta [resultados de cobro / rechazos](https://www.mercadopago.com/developers/es/docs/checkout-api/response-handling/collection-results).
+- **Depuración:** con `CWA_ADMIN_SECRET`, `GET /api/payment/debug/last-mp-webhook?secret=…` devuelve el último evento MP en memoria (payment id + estado + detalle).
+- **Perú / sandbox:** usa tarjetas y medios de prueba del país correcto; ver [tarjetas de prueba](https://www.mercadopago.com.pe/developers/es/docs/checkout-api/integration-test/test-cards) (Perú). Un error genérico en la UI de MP suele deberse a medio o datos de prueba incorrectos para el país.
+- **Variables útiles:** `MERCADOPAGO_CURRENCY_ID=PEN` y `MERCADOPAGO_UNIT_PRICE` en soles si el checkout muestra PEN; `MERCADOPAGO_BINARY_MODE=false` si en sandbox necesitas flujos no binarios.
+
